@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מדריך למשתמש - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .guide-content { max-width: 800px; margin: 0 auto; }
+    .guide-content h2 { color: var(--gold); margin-top: 32px; margin-bottom: 12px; font-size: 1.4em; }
+    .guide-content h3 { color: var(--primary-light); margin-top: 20px; margin-bottom: 8px; }
+    .guide-content p { line-height: 1.8; margin-bottom: 12px; color: var(--text); }
+    .guide-content ol, .guide-content ul { padding-right: 24px; margin-bottom: 12px; }
+    .guide-content li { line-height: 1.8; margin-bottom: 6px; }
+    .step-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .step-card .step-num { display: inline-block; background: var(--primary); color: white; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; font-weight: bold; margin-left: 8px; }
+    .step-card h4 { display: inline; color: var(--gold); }
+    .tip { background: #D4A85315; border-right: 3px solid var(--gold); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .tip strong { color: var(--gold); }
+    .warn { background: #e74c3c15; border-right: 3px solid var(--danger); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+    .warn strong { color: var(--danger); }
+    .back-link { display: inline-block; margin-bottom: 20px; color: var(--gold); text-decoration: none; }
+    .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .toc a { color: var(--text); text-decoration: none; display: block; padding: 4px 0; }
+    .toc a:hover { color: var(--gold); }
+  </style>
+</head>
+<body>
+  <div style="padding: 24px;">
+    <div class="guide-content">
+      <a href="/admin/" class="back-link">← חזרה לדשבורד</a>
+
+      <h1 style="color: var(--gold); text-align: center; font-size: 1.8em; margin-bottom: 8px;">מדריך למשתמש</h1>
+      <p style="text-align: center; color: var(--text-muted); margin-bottom: 32px;">מערכת סידור עבודה - רולדין</p>
+
+      <div class="toc">
+        <h3 style="color: var(--gold); margin-top: 0;">תוכן עניינים</h3>
+        <a href="#overview">1. סקירה כללית</a>
+        <a href="#employees">2. ניהול עובדים</a>
+        <a href="#shifts">3. הגדרת משמרות</a>
+        <a href="#availability">4. איסוף זמינות (וואטסאפ)</a>
+        <a href="#schedule">5. יצירת סידור עבודה</a>
+        <a href="#employee-view">6. צד העובדת</a>
+        <a href="#dashboard">7. דשבורד וסטטיסטיקות</a>
+        <a href="#weekly-flow">8. תהליך שבועי מומלץ</a>
+        <a href="#tips">9. טיפים</a>
+      </div>
+
+      <!-- 1. Overview -->
+      <h2 id="overview">1. סקירה כללית</h2>
+      <p>המערכת מאפשרת למנהל הסניף לנהל את סידור העבודה השבועי בצורה חכמה ויעילה:</p>
+      <ul>
+        <li><strong>הגדרת משמרות</strong> - כמה משמרות ביום, שעות, כמות עובדים</li>
+        <li><strong>איסוף זמינות</strong> - שליחת לינק לעובדות דרך וואטסאפ</li>
+        <li><strong>סידור אוטומטי</strong> - האלגוריתם מסדר את המשמרות בהתאם לזמינות</li>
+        <li><strong>עריכה ידנית</strong> - המנהל יכול לשנות את הסידור לפני פרסום</li>
+        <li><strong>פרסום ושיתוף</strong> - שליחת הסידור לעובדות + גרסה להדפסה</li>
+      </ul>
+
+      <!-- 2. Employees -->
+      <h2 id="employees">2. ניהול עובדים</h2>
+      <p>דף <strong>עובדים</strong> מאפשר להוסיף, לערוך ולמחוק עובדים.</p>
+
+      <h3>הוספת עובדת חדשה</h3>
+      <div class="step-card">
+        <span class="step-num">1</span><h4>לחץ "+ הוספת עובדת"</h4>
+        <p>ימלא חלון עם הפרטים הבאים:</p>
+        <ul>
+          <li><strong>שם מלא</strong> - שם פרטי ומשפחה</li>
+          <li><strong>טלפון</strong> - מספר הנייד (לשליחת וואטסאפ)</li>
+          <li><strong>תפקיד</strong> - אחמ"ש / בריסטה / קופאית / מטבח / כללי</li>
+          <li><strong>העדפת משמרת</strong> - בוקר בלבד / ערב בלבד / גם וגם</li>
+          <li><strong>מקסימום משמרות בשבוע</strong> - ברירת מחדל: 6</li>
+        </ul>
+      </div>
+
+      <div class="tip">
+        <strong>טיפ:</strong> לכל עובדת נוצר <strong>קישור אישי</strong> (טוקן) שדרכו היא מגישה זמינות ורואה את הסידור שלה. הקישור מופיע בטבלת העובדים.
+      </div>
+
+      <h3>תפקידים</h3>
+      <p>התפקיד משפיע על צבע העובדת בסידור ועל שיבוץ אוטומטי (אפשר להגדיר שבכל משמרת חייב להיות לפחות אחמ"ש אחד, בריסטה אחת וכו').</p>
+      <ul>
+        <li><span style="color:#e74c3c">● אחמ"ש</span> - אחראית משמרת</li>
+        <li><span style="color:#3498db">● בריסטה</span></li>
+        <li><span style="color:#2ecc71">● קופאית</span></li>
+        <li><span style="color:#f39c12">● מטבח</span></li>
+        <li><span style="color:#95a5a6">● כללי</span></li>
+      </ul>
+
+      <!-- 3. Shifts -->
+      <h2 id="shifts">3. הגדרת משמרות</h2>
+      <p>דף <strong>הגדרת משמרות</strong> מאפשר להגדיר את מבנה המשמרות.</p>
+
+      <h3>משמרות ברירת מחדל</h3>
+      <p>הגדר את המשמרות הקבועות (למשל: בוקר 07:00-15:00, ערב 15:00-23:00). לכל משמרת:</p>
+      <ul>
+        <li><strong>שם</strong> - בוקר / ערב / לילה וכו'</li>
+        <li><strong>שעות</strong> - שעת התחלה וסיום</li>
+        <li><strong>כמות עובדים</strong> - כמה עובדים נדרשים במשמרת</li>
+      </ul>
+
+      <h3>שינויים לפי יום</h3>
+      <p>אפשר להגדיר שינויים לימים ספציפיים בשבוע:</p>
+      <ul>
+        <li><strong>שישי</strong> - משמרת קצרה (07:00-15:00), יותר עובדים</li>
+        <li><strong>שבת</strong> - סגור (סימון "סגור")</li>
+      </ul>
+
+      <h3>שינויים לתאריכים ספציפיים</h3>
+      <p>לחגים ואירועים מיוחדים - אפשר לסמן תאריך כסגור או להגדיר שעות מיוחדות.</p>
+
+      <h3>דרישות תפקידים</h3>
+      <p>אפשר להגדיר שבכל משמרת בוקר חייב להיות לפחות אחמ"ש 1 ובריסטה 1. המערכת תקח את זה בחשבון בסידור האוטומטי.</p>
+
+      <!-- 4. Availability -->
+      <h2 id="availability">4. איסוף זמינות</h2>
+      <p>זהו הליבה של המערכת - כאן אוספים מהעובדות מתי הן יכולות לעבוד.</p>
+
+      <div class="step-card">
+        <span class="step-num">1</span><h4>פתיחת שבוע</h4>
+        <p>בדף <strong>זמינות</strong>, בחר את השבוע הרצוי (בדרך כלל "שבוע הבא") ולחץ <strong>"פתח שבוע להגשות"</strong>. הגדר דדליין להגשה ואם ההגשה היא חובה.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">2</span><h4>שליחת לינקים בוואטסאפ</h4>
+        <p>לחץ <strong>"שלח לינקי זמינות"</strong>. יופיע חלון עם כל העובדות וכפתור <strong>"שלח"</strong> ליד כל אחת. לחיצה פותחת את וואטסאפ עם הודעה מוכנה שכוללת את הלינק האישי של העובדת.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">3</span><h4>מעקב הגשות</h4>
+        <p>הטבלה מראה מי הגישה ומי לא. ליד כל עובדת שהגישה מופיע תאריך ההגשה.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">4</span><h4>תזכורות</h4>
+        <p>לחץ <strong>"שלח תזכורות"</strong> לשלוח הודעת וואטסאפ רק למי שעדיין לא הגישה.</p>
+      </div>
+
+      <div class="tip">
+        <strong>טיפ:</strong> העובדות מקבלות טופס נוח בנייד שבו הן מסמנות לכל יום באילו משמרות הן יכולות, ויכולות גם לסמן ימים שהן לא יכולות בשום אופן (blackout).
+      </div>
+
+      <!-- 5. Schedule -->
+      <h2 id="schedule">5. יצירת סידור עבודה</h2>
+
+      <div class="step-card">
+        <span class="step-num">1</span><h4>יצירה אוטומטית</h4>
+        <p>בדף <strong>סידור עבודה</strong>, בחר את השבוע ולחץ <strong>"יצירת סידור אוטומטי"</strong>. המערכת תיצור סידור חכם שלוקח בחשבון:</p>
+        <ul>
+          <li>זמינות שהעובדות הגישו</li>
+          <li>ימי חסימה (blackout) - העובדת לא תשובץ שם</li>
+          <li>העדפת משמרת (בוקר/ערב)</li>
+          <li>דרישות תפקידים (אחמ"ש, בריסטה וכו')</li>
+          <li>הוגנות - מי שעבדה פחות בשבועות האחרונים תקבל עדיפות</li>
+          <li>מקסימום משמרות לשבוע</li>
+        </ul>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">2</span><h4>בדיקת התראות</h4>
+        <p>אם יש בעיות (חוסר עובדים, חוסר תפקיד מסוים), הן יופיעו כהתראות צהובות מעל הסידור.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">3</span><h4>עריכה ידנית</h4>
+        <p>ניתן לשנות את הסידור ידנית לפני פרסום - להזיז עובדות בין משמרות, להוסיף או להוריד.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">4</span><h4>פרסום</h4>
+        <p>לחץ <strong>"פרסם סידור"</strong>. מרגע הפרסום, העובדות יכולות לראות את הסידור בלינק האישי שלהן.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">5</span><h4>שליחה לעובדות</h4>
+        <p>לחץ <strong>"שלח לעובדות"</strong> לשלוח הודעת וואטסאפ עם לינק לצפייה בסידור.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">6</span><h4>הדפסה</h4>
+        <p>לחץ <strong>"הדפסה"</strong> לפתוח גרסת הדפסה נקייה של הסידור (אפשר להדפיס או לשמור כ-PDF).</p>
+      </div>
+
+      <!-- 6. Employee View -->
+      <h2 id="employee-view">6. צד העובדת</h2>
+      <p>כל עובדת מקבלת לינק אישי דרך וואטסאפ. דרך הלינק היא יכולה:</p>
+
+      <h3>הגשת זמינות</h3>
+      <ul>
+        <li>לבחור <strong>העדפת משמרת</strong> - בוקר בלבד / ערב בלבד / גם וגם</li>
+        <li>לסמן לכל יום באילו <strong>משמרות היא יכולה</strong></li>
+        <li>לסמן ימים שהיא <strong>לא יכולה בשום אופן</strong> (blackout)</li>
+        <li>להוסיף <strong>הערות</strong> חופשיות</li>
+        <li>חגים מסומנים אוטומטית בטופס</li>
+      </ul>
+
+      <h3>צפייה בסידור</h3>
+      <ul>
+        <li>רואה את <strong>המשמרות שלה</strong> בשבוע</li>
+        <li>רואה את <strong>הסידור המלא</strong> - מי עובד בכל משמרת</li>
+        <li>כל עובדת מוצגת בצבע לפי תפקידה</li>
+      </ul>
+
+      <h3>בקשת החלפה</h3>
+      <p>עובדת יכולה לבקש להחליף משמרת עם עובדת אחרת. המנהל מאשר או דוחה.</p>
+
+      <!-- 7. Dashboard -->
+      <h2 id="dashboard">7. דשבורד וסטטיסטיקות</h2>
+
+      <h3>דשבורד</h3>
+      <p>מציג בזמן אמת:</p>
+      <ul>
+        <li>כמה עובדות פעילות</li>
+        <li>כמה הגישו זמינות וכמה לא</li>
+        <li>סטטוס הסידור (טיוטה / פורסם / לא נוצר)</li>
+        <li>התראות על חוסרים ובעיות</li>
+        <li>פערי איוש - משמרות שלא מאוישות מספיק</li>
+      </ul>
+
+      <h3>סטטיסטיקות</h3>
+      <p>דף <strong>סטטיסטיקות</strong> מציג לכל עובדת:</p>
+      <ul>
+        <li>סה"כ משמרות (ב-4/8/12 שבועות אחרונים)</li>
+        <li>חלוקה: משמרות בוקר, ערב, סופ"ש</li>
+        <li>ממוצע משמרות לשבוע</li>
+        <li>גרף הוגנות - מי עבדה הכי הרבה ומי הכי מעט</li>
+      </ul>
+
+      <!-- 8. Weekly Flow -->
+      <h2 id="weekly-flow">8. תהליך שבועי מומלץ</h2>
+
+      <div class="step-card">
+        <span class="step-num">א</span><h4>ראשון/שני - פתיחת שבוע</h4>
+        <p>פתח את השבוע הבא להגשת זמינות. הגדר דדליין ליום רביעי בערב.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">ב</span><h4>ראשון/שני - שליחת לינקים</h4>
+        <p>שלח לינקי זמינות לכל העובדות בוואטסאפ.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">ג</span><h4>רביעי - תזכורות</h4>
+        <p>שלח תזכורות למי שעדיין לא הגישה.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">ד</span><h4>חמישי - יצירת סידור</h4>
+        <p>לחץ "יצירת סידור אוטומטי". בדוק התראות ותקן ידנית אם צריך.</p>
+      </div>
+
+      <div class="step-card">
+        <span class="step-num">ה</span><h4>חמישי - פרסום</h4>
+        <p>פרסם את הסידור ושלח לעובדות דרך וואטסאפ. אפשר גם להדפיס ולתלות בסניף.</p>
+      </div>
+
+      <!-- 9. Tips -->
+      <h2 id="tips">9. טיפים</h2>
+
+      <div class="tip">
+        <strong>חגים:</strong> המערכת מכילה לוח חגים ישראלי (2025-2027). חגים מופיעים אוטומטית בטופס הזמינות של העובדות. אפשר להגדיר בדף "הגדרת משמרות" שהסניף סגור בחגים.
+      </div>
+
+      <div class="tip">
+        <strong>הוגנות:</strong> האלגוריתם מחלק משמרות בצורה הוגנת - עובדת שעבדה פחות בשבועות האחרונים תקבל עדיפות. ניתן לעקוב אחרי ההוגנות בדף "סטטיסטיקות".
+      </div>
+
+      <div class="tip">
+        <strong>סיסמה:</strong> ניתן לשנות את סיסמת הכניסה דרך משתנה סביבה ADMIN_PASSWORD ברנדר.
+      </div>
+
+      <div class="warn">
+        <strong>חשוב:</strong> מספרי הטלפון חייבים להיות עדכניים כדי שלינקי הוואטסאפ יעבדו. ניתן לעדכן בדף "עובדים" > "עריכה".
+      </div>
+
+      <div class="warn">
+        <strong>חשוב:</strong> עובדת שלא הגישה זמינות לא תשובץ באף משמרת! ודא שכולן הגישו לפני יצירת הסידור.
+      </div>
+
+      <p style="text-align:center; color:var(--text-muted); margin-top:40px; padding-bottom:40px;">
+        מערכת סידור עבודה - רולדין &copy; 2026
+      </p>
+    </div>
+  </div>
+</body>
+</html>
