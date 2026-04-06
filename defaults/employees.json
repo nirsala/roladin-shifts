@@ -1,1 +1,222 @@
-[]
+[
+  {
+    "id": "96c71407-e70b-408e-be11-05abba953801",
+    "name": "תמר גלאם",
+    "phone": "0500000010",
+    "token": "fe9d101a",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.686Z"
+  },
+  {
+    "id": "be809b3d-c7ec-4ecd-9ad0-97534d4ecdfc",
+    "name": "עידו פרץ",
+    "phone": "0500000017",
+    "token": "90699750",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.687Z"
+  },
+  {
+    "id": "9e1799ff-bb6f-4254-9a9c-64ad0e9873c4",
+    "name": "אגם שמש",
+    "phone": "0500000041",
+    "token": "05a2c241",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.688Z"
+  },
+  {
+    "id": "a4d0739d-63a4-4ffe-b021-d8821b9ac6d9",
+    "name": "טליה בן חמו",
+    "phone": "0500000044",
+    "token": "edfcb4af",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.689Z"
+  },
+  {
+    "id": "97e12ad8-8b24-49cb-b5db-8fddbb1e8297",
+    "name": "ליאל דלאל",
+    "phone": "0500000051",
+    "token": "1e12e6bc",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.690Z"
+  },
+  {
+    "id": "a8c86908-fa42-4344-b096-3cc8eb271fa2",
+    "name": "נועה זכאי",
+    "phone": "0500000053",
+    "token": "0cdc41a7",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.690Z"
+  },
+  {
+    "id": "b80caabc-48b6-472a-b909-4f89ed5541ed",
+    "name": "מאי טויל",
+    "phone": "0500000055",
+    "token": "75b92874",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.692Z"
+  },
+  {
+    "id": "b630d44b-dd62-493f-80e6-482785bb9263",
+    "name": "רותם הרץ",
+    "phone": "0500000056",
+    "token": "f8197c54",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.694Z"
+  },
+  {
+    "id": "bfeed223-65d2-46a5-abab-097fe15041bf",
+    "name": "לואי טאהא",
+    "phone": "0500000058",
+    "token": "71256bfb",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.694Z"
+  },
+  {
+    "id": "154ff762-5394-4bf1-a384-d9625a945c5d",
+    "name": "שושנה נחאיסי",
+    "phone": "0500000059",
+    "token": "f82ac391",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.695Z"
+  },
+  {
+    "id": "099c4185-713c-4a5b-a21d-7b79ab1d8261",
+    "name": "נטע מזוז",
+    "phone": "0500000064",
+    "token": "771455f8",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.696Z"
+  },
+  {
+    "id": "33539370-1c9f-49d1-b685-0f3653a6e57f",
+    "name": "נועה נחאיסי",
+    "phone": "0500000065",
+    "token": "4a5496c6",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.696Z"
+  },
+  {
+    "id": "da8e3abc-0eec-4eaa-8ea6-1349779c955b",
+    "name": "טליה כתבי",
+    "phone": "0500000066",
+    "token": "5a2c08b9",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.696Z"
+  },
+  {
+    "id": "1fee800c-4079-499e-a934-9c1c017c3800",
+    "name": "אלה טויל",
+    "phone": "0500000067",
+    "token": "2fc84ea4",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.697Z"
+  },
+  {
+    "id": "b5cd690a-2f19-421c-8b15-25fe007b772c",
+    "name": "הילי יעקב",
+    "phone": "0500000068",
+    "token": "0caefe86",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.697Z"
+  },
+  {
+    "id": "225dd8d1-8d9f-423b-8680-f1d6a3964378",
+    "name": "לינוי פרץ",
+    "phone": "0500000069",
+    "token": "30e473c7",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.698Z"
+  },
+  {
+    "id": "7725d010-941d-4cee-b057-2d7266b62c3d",
+    "name": "ליאם לאה כהן",
+    "phone": "0500000072",
+    "token": "9f65757e",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.699Z"
+  },
+  {
+    "id": "abe88e52-a3c3-437b-9f03-519a7229fc29",
+    "name": "יואל זהבי",
+    "phone": "0500000073",
+    "token": "51f48f7a",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.700Z"
+  },
+  {
+    "id": "ab363dd1-cefd-459f-be7c-15687513437e",
+    "name": "תמרי תשובה",
+    "phone": "0500000074",
+    "token": "b20a34a0",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.700Z"
+  },
+  {
+    "id": "e8da284d-c969-4429-a55d-7425c1af4092",
+    "name": "זיו גולן",
+    "phone": "0500000075",
+    "token": "200104ab",
+    "role": "general",
+    "shiftPreference": "any",
+    "maxShiftsPerWeek": 6,
+    "active": true,
+    "createdAt": "2026-04-06T13:59:14.701Z"
+  }
+]
