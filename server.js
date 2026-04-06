@@ -18,6 +18,8 @@ const wss = new WebSocket.Server({ server });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/', (req, res) => res.redirect('/admin/login.html'));
+
 // --- Init ---
 auth.initAdmin();
 storage.read('employees', []);
