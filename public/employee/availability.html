@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>הגשת זמינות - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { background: var(--bg); }
+    .submit-bar {
+      position: sticky;
+      bottom: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="employee-container">
+    <div class="employee-header">
+      <h1>רולדין - הגשת זמינות</h1>
+      <div class="emp-name" id="empName"></div>
+      <div id="weekInfo" style="color:var(--text-muted);font-size:0.85em;margin-top:4px"></div>
+    </div>
+
+    <div id="loading" style="text-align:center;padding:40px;color:var(--text-muted)">טוען...</div>
+    <div id="error" style="display:none;text-align:center;padding:40px;color:var(--danger)"></div>
+    <div id="submitted" style="display:none;text-align:center;padding:40px">
+      <h2 style="color:var(--success);margin-bottom:12px">✓ הזמינות נשמרה!</h2>
+      <p style="color:var(--text-muted)">תודה שהגשת. ניתן לעדכן שוב עד הדדליין.</p>
+      <button class="btn btn-gold" style="margin-top:16px" onclick="location.reload()">עדכן שוב</button>
+    </div>
+
+    <form id="availForm" style="display:none">
+      <div class="card" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>העדפת משמרת</label>
+          <select id="shiftPref" class="form-control">
+            <option value="any">גם וגם (בוקר + ערב)</option>
+            <option value="morning">בוקר בלבד</option>
+            <option value="evening">ערב בלבד</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="daysContainer"></div>
+
+      <div class="card" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>הערות (אופציונלי)</label>
+          <textarea id="notes" class="form-control" rows="2" placeholder="הערות נוספות..."></textarea>
+        </div>
+      </div>
+
+      <div class="submit-bar">
+        <button type="submit" class="btn btn-gold btn-lg" style="width:100%;max-width:300px">שלח זמינות</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    const weekParam = params.get('week');
+
+    if (!token) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = 'קישור לא תקין - חסר טוקן';
+    } else {
+      loadForm();
+    }
+
+    let formData = null;
+
+    async function loadForm() {
+      try {
+        const url = weekParam
+          ? `/api/availability/form/${token}?week=${weekParam}`
+          : `/api/availability/form/${token}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error);
+        }
+        formData = await res.json();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('availForm').style.display = 'block';
+        document.getElementById('empName').textContent = formData.employee.name;
+        document.getElementById('weekInfo').textContent = `שבוע ${formData.weekKey}` +
+          (formData.deadline ? ` | דדליין: ${new Date(formData.deadline).toLocaleDateString('he-IL')}` : '');
+
+        if (formData.employee.shiftPreference) {
+          document.getElementById('shiftPref').value = formData.employee.shiftPreference;
+        }
+
+        renderDays();
+
+        // Prefill if existing submission
+        if (formData.existing) {
+          prefill(formData.existing);
+        }
+      } catch (err) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = err.message || 'שגיאה בטעינה';
+      }
+    }
+
+    function renderDays() {
+      const container = document.getElementById('daysContainer');
+      container.innerHTML = formData.days.map(day => {
+        if (!day.shifts) return `
+          <div class="day-card" style="opacity:0.5">
+            <div class="day-name">${day.dayName} - ${day.date.slice(5)} <span style="color:var(--danger)">סגור</span></div>
+          </div>`;
+
+        const mandatoryTag = formData.mandatoryDays?.includes(day.date)
+          ? '<span style="background:var(--danger);color:white;padding:2px 6px;border-radius:4px;font-size:0.75em;margin-right:8px">חובה</span>' : '';
+        const holidayTag = day.holiday
+          ? `<span class="holiday-tag">${day.holiday.name}</span>` : '';
+
+        const shifts = day.shifts.map(s => `
+          <label class="shift-checkbox">
+            <input type="checkbox" name="shift_${day.date}" value="${s.id}" data-date="${day.date}" data-shift="${s.id}">
+            <span>${s.name}</span>
+            <span class="shift-time">${s.start} - ${s.end}</span>
+          </label>
+        `).join('');
+
+        return `
+          <div class="day-card" data-date="${day.date}">
+            <div class="day-name">${day.dayName} - ${day.date.slice(5)} ${mandatoryTag}${holidayTag}</div>
+            ${shifts}
+            <label class="blackout-toggle">
+              <input type="checkbox" class="blackout-cb" data-date="${day.date}" onchange="toggleBlackout(this)">
+              <span>לא יכולה בשום אופן ביום הזה</span>
+            </label>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleBlackout(cb) {
+      const date = cb.dataset.date;
+      const card = cb.closest('.day-card');
+      const shiftCbs = card.querySelectorAll('input[name^="shift_"]');
+      if (cb.checked) {
+        shiftCbs.forEach(s => { s.checked = false; s.disabled = true; });
+        card.style.opacity = '0.5';
+      } else {
+        shiftCbs.forEach(s => { s.disabled = false; });
+        card.style.opacity = '1';
+      }
+    }
+
+    function prefill(existing) {
+      if (existing.shiftPreference) {
+        document.getElementById('shiftPref').value = existing.shiftPreference;
+      }
+      if (existing.notes) {
+        document.getElementById('notes').value = existing.notes;
+      }
+      // Check shift checkboxes
+      for (const [date, shifts] of Object.entries(existing.days || {})) {
+        shifts.forEach(shiftId => {
+          const cb = document.querySelector(`input[data-date="${date}"][data-shift="${shiftId}"]`);
+          if (cb) cb.checked = true;
+        });
+      }
+      // Check blackout days
+      (existing.blackoutDays || []).forEach(date => {
+        const cb = document.querySelector(`.blackout-cb[data-date="${date}"]`);
+        if (cb) { cb.checked = true; toggleBlackout(cb); }
+      });
+    }
+
+    document.getElementById('availForm').onsubmit = async (e) => {
+      e.preventDefault();
+
+      const days = {};
+      const blackoutDays = [];
+
+      formData.days.forEach(day => {
+        if (!day.shifts) return;
+
+        const blackoutCb = document.querySelector(`.blackout-cb[data-date="${day.date}"]`);
+        if (blackoutCb?.checked) {
+          blackoutDays.push(day.date);
+          return;
+        }
+
+        const checked = document.querySelectorAll(`input[data-date="${day.date}"]:checked:not(.blackout-cb)`);
+        if (checked.length > 0) {
+          days[day.date] = [...checked].map(cb => cb.value);
+        }
+      });
+
+      const body = {
+        weekKey: formData.weekKey,
+        days,
+        blackoutDays,
+        shiftPreference: document.getElementById('shiftPref').value,
+        notes: document.getElementById('notes').value.trim()
+      };
+
+      try {
+        const res = await fetch(`/api/availability/submit/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        document.getElementById('availForm').style.display = 'none';
+        document.getElementById('submitted').style.display = 'block';
+      } catch (err) {
+        alert(err.message || 'שגיאה בשמירה');
+      }
+    };
+  </script>
+</body>
+</html>

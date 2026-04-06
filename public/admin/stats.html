@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>סטטיסטיקות - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo"><h1>רולדין</h1><small>סידור עבודה</small></div>
+      <nav>
+        <a href="/admin/"><span class="icon">📊</span> דשבורד</a>
+        <a href="/admin/employees.html"><span class="icon">👥</span> עובדים</a>
+        <a href="/admin/shifts-config.html"><span class="icon">⚙️</span> הגדרת משמרות</a>
+        <a href="/admin/availability.html"><span class="icon">📝</span> זמינות</a>
+        <a href="/admin/schedule.html"><span class="icon">📋</span> סידור עבודה</a>
+        <a href="/admin/stats.html" class="active"><span class="icon">📈</span> סטטיסטיקות</a>
+        <a href="#" onclick="clearToken();location.href='/admin/login.html'"><span class="icon">🚪</span> יציאה</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h2>סטטיסטיקות עובדים</h2>
+        <select id="weeksBack" class="form-control" style="width:auto" onchange="loadStats()">
+          <option value="4">4 שבועות</option>
+          <option value="8" selected>8 שבועות</option>
+          <option value="12">12 שבועות</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>חלוקת הוגנות</h3></div>
+        <div id="fairnessChart" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>שם</th><th>תפקיד</th><th>סה"כ משמרות</th><th>בוקר</th><th>ערב</th><th>סופ"ש</th><th>ממוצע/שבוע</th></tr>
+            </thead>
+            <tbody id="statsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw '';
+
+    async function loadStats() {
+      const weeks = document.getElementById('weeksBack').value;
+      const data = await api(`/api/stats/employees?weeks=${weeks}`);
+      if (!data) return;
+
+      const maxShifts = Math.max(...data.map(e => e.stats.totalShifts), 1);
+
+      document.getElementById('fairnessChart').innerHTML = data.map(e => {
+        const pct = (e.stats.totalShifts / maxShifts * 100).toFixed(0);
+        const color = roleColors[e.role] || '#95a5a6';
+        return `<div style="text-align:center;min-width:60px">
+          <div style="height:100px;display:flex;align-items:flex-end;justify-content:center">
+            <div style="width:30px;height:${pct}%;background:${color};border-radius:4px 4px 0 0;min-height:4px"></div>
+          </div>
+          <div style="font-size:0.75em;margin-top:4px">${e.name}</div>
+          <div style="font-size:0.7em;color:var(--text-muted)">${e.stats.totalShifts}</div>
+        </div>`;
+      }).join('');
+
+      document.getElementById('statsTable').innerHTML = data.map(e => `
+        <tr>
+          <td><strong>${e.name}</strong></td>
+          <td><span class="role-badge role-${e.role}">${roleNames[e.role]}</span></td>
+          <td>${e.stats.totalShifts}</td>
+          <td>${e.stats.morningShifts}</td>
+          <td>${e.stats.eveningShifts}</td>
+          <td>${e.stats.weekendShifts}</td>
+          <td>${e.stats.avgPerWeek}</td>
+        </tr>
+      `).join('');
+    }
+
+    loadStats();
+  </script>
+</body>
+</html>

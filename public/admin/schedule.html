@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>סידור עבודה - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo"><h1>רולדין</h1><small>סידור עבודה</small></div>
+      <nav>
+        <a href="/admin/"><span class="icon">📊</span> דשבורד</a>
+        <a href="/admin/employees.html"><span class="icon">👥</span> עובדים</a>
+        <a href="/admin/shifts-config.html"><span class="icon">⚙️</span> הגדרת משמרות</a>
+        <a href="/admin/availability.html"><span class="icon">📝</span> זמינות</a>
+        <a href="/admin/schedule.html" class="active"><span class="icon">📋</span> סידור עבודה</a>
+        <a href="/admin/stats.html"><span class="icon">📈</span> סטטיסטיקות</a>
+        <a href="#" onclick="clearToken();location.href='/admin/login.html'"><span class="icon">🚪</span> יציאה</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h2>סידור עבודה</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="weekSelect" class="form-control" style="width:auto" onchange="loadSchedule()"></select>
+        </div>
+      </div>
+
+      <div id="noSchedule" style="display:none">
+        <div class="card" style="text-align:center;padding:40px">
+          <h3 style="margin-bottom:16px">לא נוצר סידור לשבוע זה</h3>
+          <button class="btn btn-gold btn-lg" onclick="generateSchedule()">יצירת סידור אוטומטי</button>
+        </div>
+      </div>
+
+      <div id="hasSchedule" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+          <span id="scheduleStatus" style="font-weight:bold"></span>
+          <button class="btn btn-gold" onclick="generateSchedule()">יצירה מחדש</button>
+          <button class="btn btn-success" id="publishBtn" onclick="publishSchedule()">פרסם סידור</button>
+          <button class="btn btn-info" onclick="sendScheduleLinks()">📱 שלח לעובדות</button>
+          <a id="printLink" href="#" target="_blank" class="btn btn-outline">🖨️ הדפסה</a>
+        </div>
+
+        <div id="warnings" style="display:none">
+          <div class="warning-box">
+            <h4 style="margin-bottom:8px">⚠️ התראות</h4>
+            <div id="warningsList"></div>
+          </div>
+        </div>
+
+        <div class="card" style="overflow-x:auto">
+          <div id="scheduleGrid"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw '';
+
+    const weekSelect = document.getElementById('weekSelect');
+    const current = getCurrentWeekKey();
+    const next = getNextWeekKey();
+    weekSelect.innerHTML = `
+      <option value="${current}">שבוע נוכחי (${current})</option>
+      <option value="${next}" selected>שבוע הבא (${next})</option>
+    `;
+
+    let scheduleData = null;
+    let employees = [];
+
+    async function loadSchedule() {
+      const week = weekSelect.value;
+      document.getElementById('printLink').href = `/api/schedules/${week}/print`;
+      try {
+        scheduleData = await api(`/api/schedules/${week}`);
+        employees = await api('/api/employees') || [];
+        document.getElementById('noSchedule').style.display = 'none';
+        document.getElementById('hasSchedule').style.display = 'block';
+
+        const statusText = scheduleData.status === 'published' ? '🟢 פורסם' : '🟡 טיוטה';
+        document.getElementById('scheduleStatus').innerHTML = statusText;
+        document.getElementById('publishBtn').style.display = scheduleData.status === 'published' ? 'none' : '';
+
+        // Warnings
+        if (scheduleData.warnings?.length > 0) {
+          document.getElementById('warnings').style.display = 'block';
+          document.getElementById('warningsList').innerHTML = scheduleData.warnings
+            .map(w => `<div class="warning-item">⚠️ ${w}</div>`).join('');
+        } else {
+          document.getElementById('warnings').style.display = 'none';
+        }
+
+        renderGrid();
+      } catch {
+        document.getElementById('noSchedule').style.display = 'block';
+        document.getElementById('hasSchedule').style.display = 'none';
+      }
+    }
+
+    function renderGrid() {
+      const days = Object.entries(scheduleData.days || {}).filter(([, v]) => v !== null);
+      if (days.length === 0) { document.getElementById('scheduleGrid').innerHTML = '<p>אין ימים בסידור</p>'; return; }
+
+      // Collect all shift IDs
+      const allShifts = new Set();
+      days.forEach(([, shifts]) => Object.keys(shifts).forEach(s => allShifts.add(s)));
+      const shiftIds = [...allShifts];
+
+      let html = '<div class="schedule-grid" style="grid-template-columns: 100px repeat(' + days.length + ', 1fr)">';
+
+      // Header row
+      html += '<div class="cell cell-header"></div>';
+      days.forEach(([dateStr]) => {
+        html += `<div class="cell cell-header">${formatDate(dateStr)}</div>`;
+      });
+
+      // Shift rows
+      shiftIds.forEach(shiftId => {
+        html += `<div class="cell cell-shift">${shiftId}</div>`;
+        days.forEach(([dateStr, shifts]) => {
+          const emps = shifts[shiftId] || [];
+          const tags = emps.map(e => {
+            const color = roleColors[e.role] || '#95a5a6';
+            return `<span class="emp-tag" style="background:${color}22;color:${color}">${e.name}</span>`;
+          }).join('');
+          html += `<div class="cell">${tags || '<span style="color:var(--text-muted)">-</span>'}</div>`;
+        });
+      });
+
+      html += '</div>';
+      document.getElementById('scheduleGrid').innerHTML = html;
+    }
+
+    async function generateSchedule() {
+      const week = weekSelect.value;
+      if (scheduleData?.status === 'published' && !confirm('הסידור כבר פורסם. ליצור מחדש?')) return;
+      try {
+        await api(`/api/schedules/${week}/generate`, { method: 'POST' });
+        showToast('סידור נוצר!');
+        loadSchedule();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function publishSchedule() {
+      const week = weekSelect.value;
+      if (!confirm('לפרסם את הסידור? העובדות יוכלו לראות אותו.')) return;
+      try {
+        await api(`/api/schedules/${week}/publish`, { method: 'POST' });
+        showToast('פורסם!');
+        loadSchedule();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function sendScheduleLinks() {
+      const week = weekSelect.value;
+      try {
+        const links = await api(`/api/whatsapp/schedule-links/${week}`);
+        let html = links.map(l => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
+            <span style="flex:1">${l.name}</span>
+            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
+          </div>
+        `).join('');
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `<div class="modal"><h3>שליחת סידור לעובדות</h3>${html}
+          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
+        document.body.appendChild(modal);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    loadSchedule();
+    connectWS(msg => {
+      if (['schedule_generated', 'schedule_updated', 'schedule_published'].includes(msg.event)) loadSchedule();
+    });
+  </script>
+</body>
+</html>

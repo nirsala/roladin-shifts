@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>דשבורד - סידור עבודה רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo">
+        <h1>רולדין</h1>
+        <small>סידור עבודה</small>
+      </div>
+      <nav>
+        <a href="/admin/" class="active"><span class="icon">📊</span> דשבורד</a>
+        <a href="/admin/employees.html"><span class="icon">👥</span> עובדים</a>
+        <a href="/admin/shifts-config.html"><span class="icon">⚙️</span> הגדרת משמרות</a>
+        <a href="/admin/availability.html"><span class="icon">📝</span> זמינות</a>
+        <a href="/admin/schedule.html"><span class="icon">📋</span> סידור עבודה</a>
+        <a href="/admin/stats.html"><span class="icon">📈</span> סטטיסטיקות</a>
+        <a href="#" onclick="clearToken();location.href='/admin/login.html'"><span class="icon">🚪</span> יציאה</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h2>דשבורד</h2>
+        <div>
+          <select id="weekSelect" class="form-control" style="width:auto;display:inline-block" onchange="loadDashboard()">
+          </select>
+        </div>
+      </div>
+
+      <div class="stats-row" id="statsRow">
+        <div class="stat-card"><div class="number" id="totalEmp">-</div><div class="label">עובדות פעילות</div></div>
+        <div class="stat-card"><div class="number" id="submitted">-</div><div class="label">הגישו זמינות</div></div>
+        <div class="stat-card"><div class="number" id="notSubmitted">-</div><div class="label">לא הגישו</div></div>
+        <div class="stat-card"><div class="number" id="schedStatus">-</div><div class="label">סטטוס סידור</div></div>
+      </div>
+
+      <div id="warningsSection" style="display:none">
+        <div class="warning-box">
+          <h4 style="margin-bottom:8px">⚠️ התראות</h4>
+          <div id="warningsList"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>לא הגישו זמינות</h3>
+          <button class="btn btn-sm btn-warning" onclick="sendReminders()">שלח תזכורת וואטסאפ</button>
+        </div>
+        <div id="notSubmittedList"></div>
+      </div>
+
+      <div class="card" id="gapsSection" style="display:none">
+        <div class="card-header">
+          <h3>פערי איוש</h3>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>יום</th><th>משמרת</th><th>משובצים</th><th>נדרש</th><th>חוסר</th></tr></thead>
+            <tbody id="gapsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw '';
+
+    const weekSelect = document.getElementById('weekSelect');
+    const current = getCurrentWeekKey();
+    const next = getNextWeekKey();
+    weekSelect.innerHTML = `
+      <option value="${current}">שבוע נוכחי (${current})</option>
+      <option value="${next}" selected>שבוע הבא (${next})</option>
+    `;
+
+    async function loadDashboard() {
+      const week = weekSelect.value;
+      try {
+        const data = await api(`/api/dashboard/${week}`);
+        document.getElementById('totalEmp').textContent = data.totalEmployees;
+        document.getElementById('submitted').textContent = data.submittedCount;
+        document.getElementById('notSubmitted').textContent = data.notSubmitted.length;
+
+        const statusMap = { none: 'לא נוצר', draft: 'טיוטה', published: 'פורסם' };
+        document.getElementById('schedStatus').textContent = statusMap[data.scheduleStatus] || '-';
+
+        // Warnings
+        if (data.warnings.length > 0) {
+          document.getElementById('warningsSection').style.display = 'block';
+          document.getElementById('warningsList').innerHTML = data.warnings
+            .map(w => `<div class="warning-item">⚠️ ${w}</div>`).join('');
+        } else {
+          document.getElementById('warningsSection').style.display = 'none';
+        }
+
+        // Not submitted
+        if (data.notSubmitted.length > 0) {
+          document.getElementById('notSubmittedList').innerHTML = data.notSubmitted
+            .map(e => `<span style="display:inline-block;padding:4px 12px;margin:4px;background:var(--bg-input);border-radius:8px">${e.name}</span>`)
+            .join('');
+        } else {
+          document.getElementById('notSubmittedList').innerHTML = '<p style="color:var(--success)">✓ כולן הגישו!</p>';
+        }
+
+        // Coverage gaps
+        if (data.coverageGaps.length > 0) {
+          document.getElementById('gapsSection').style.display = 'block';
+          document.getElementById('gapsTable').innerHTML = data.coverageGaps
+            .map(g => `<tr><td>${formatDate(g.date)}</td><td>${g.shift}</td><td>${g.assigned}</td><td>${g.required}</td><td style="color:var(--danger);font-weight:bold">${g.missing}</td></tr>`)
+            .join('');
+        } else {
+          document.getElementById('gapsSection').style.display = 'none';
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function sendReminders() {
+      const week = weekSelect.value;
+      try {
+        const links = await api(`/api/whatsapp/reminders/${week}`);
+        if (links.length === 0) { showToast('כולן הגישו!'); return; }
+
+        let html = '<div style="padding:12px">';
+        for (const l of links) {
+          html += `<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+            <span>${l.name}</span>
+            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
+          </div>`;
+        }
+        html += '</div>';
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `<div class="modal"><h3>שליחת תזכורות</h3>${html}
+          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
+        document.body.appendChild(modal);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    loadDashboard();
+    connectWS((msg) => {
+      if (['availability_submitted', 'schedule_generated', 'schedule_published'].includes(msg.event)) {
+        loadDashboard();
+      }
+    });
+  </script>
+</body>
+</html>

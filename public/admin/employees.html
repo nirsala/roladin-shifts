@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ניהול עובדים - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo"><h1>רולדין</h1><small>סידור עבודה</small></div>
+      <nav>
+        <a href="/admin/"><span class="icon">📊</span> דשבורד</a>
+        <a href="/admin/employees.html" class="active"><span class="icon">👥</span> עובדים</a>
+        <a href="/admin/shifts-config.html"><span class="icon">⚙️</span> הגדרת משמרות</a>
+        <a href="/admin/availability.html"><span class="icon">📝</span> זמינות</a>
+        <a href="/admin/schedule.html"><span class="icon">📋</span> סידור עבודה</a>
+        <a href="/admin/stats.html"><span class="icon">📈</span> סטטיסטיקות</a>
+        <a href="#" onclick="clearToken();location.href='/admin/login.html'"><span class="icon">🚪</span> יציאה</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h2>ניהול עובדים</h2>
+        <button class="btn btn-gold" onclick="openAddModal()">+ הוספת עובדת</button>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>שם</th><th>טלפון</th><th>תפקיד</th><th>העדפה</th><th>מקס משמרות</th><th>קישור אישי</th><th>פעולות</th>
+              </tr>
+            </thead>
+            <tbody id="empTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="empModal">
+    <div class="modal">
+      <h3 id="modalTitle">הוספת עובדת</h3>
+      <input type="hidden" id="empId">
+      <div class="form-group">
+        <label>שם מלא</label>
+        <input type="text" id="empName" class="form-control" placeholder="שם העובדת">
+      </div>
+      <div class="form-group">
+        <label>טלפון</label>
+        <input type="tel" id="empPhone" class="form-control" placeholder="050-1234567" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label>תפקיד</label>
+        <select id="empRole" class="form-control">
+          <option value="general">כללי</option>
+          <option value="shift_manager">אחמ"ש</option>
+          <option value="barista">בריסטה</option>
+          <option value="cashier">קופאית</option>
+          <option value="kitchen">מטבח</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>העדפת משמרת</label>
+        <select id="empPref" class="form-control">
+          <option value="any">גם וגם (בוקר + ערב)</option>
+          <option value="morning">בוקר בלבד</option>
+          <option value="evening">ערב בלבד</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>מקסימום משמרות בשבוע</label>
+        <input type="number" id="empMax" class="form-control" value="6" min="1" max="7">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-gold" onclick="saveEmployee()">שמור</button>
+        <button class="btn btn-outline" onclick="closeModal('empModal')">ביטול</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw '';
+
+    let employees = [];
+
+    async function loadEmployees() {
+      employees = await api('/api/employees') || [];
+      const tbody = document.getElementById('empTable');
+      tbody.innerHTML = employees.filter(e => e.active).map(e => `
+        <tr>
+          <td><strong>${e.name}</strong></td>
+          <td dir="ltr" style="text-align:right">${e.phone}</td>
+          <td><span class="role-badge role-${e.role}">${roleNames[e.role] || e.role}</span></td>
+          <td><span class="pref-badge pref-${e.shiftPreference}">${prefNames[e.shiftPreference] || e.shiftPreference}</span></td>
+          <td>${e.maxShiftsPerWeek || 6}</td>
+          <td><code style="font-size:0.8em;background:var(--bg-input);padding:2px 6px;border-radius:4px">${e.token}</code></td>
+          <td>
+            <button class="btn btn-sm btn-outline" onclick="editEmployee('${e.id}')">עריכה</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteEmployee('${e.id}','${e.name}')">מחיקה</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function openAddModal() {
+      document.getElementById('modalTitle').textContent = 'הוספת עובדת';
+      document.getElementById('empId').value = '';
+      document.getElementById('empName').value = '';
+      document.getElementById('empPhone').value = '';
+      document.getElementById('empRole').value = 'general';
+      document.getElementById('empPref').value = 'any';
+      document.getElementById('empMax').value = '6';
+      openModal('empModal');
+    }
+
+    function editEmployee(id) {
+      const e = employees.find(x => x.id === id);
+      if (!e) return;
+      document.getElementById('modalTitle').textContent = 'עריכת עובדת';
+      document.getElementById('empId').value = e.id;
+      document.getElementById('empName').value = e.name;
+      document.getElementById('empPhone').value = e.phone;
+      document.getElementById('empRole').value = e.role;
+      document.getElementById('empPref').value = e.shiftPreference || 'any';
+      document.getElementById('empMax').value = e.maxShiftsPerWeek || 6;
+      openModal('empModal');
+    }
+
+    async function saveEmployee() {
+      const id = document.getElementById('empId').value;
+      const data = {
+        name: document.getElementById('empName').value.trim(),
+        phone: document.getElementById('empPhone').value.trim(),
+        role: document.getElementById('empRole').value,
+        shiftPreference: document.getElementById('empPref').value,
+        maxShiftsPerWeek: parseInt(document.getElementById('empMax').value)
+      };
+
+      if (!data.name || !data.phone) { showToast('שם וטלפון חובה', 'error'); return; }
+
+      try {
+        if (id) {
+          await api(`/api/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+        } else {
+          await api('/api/employees', { method: 'POST', body: JSON.stringify(data) });
+        }
+        closeModal('empModal');
+        showToast('נשמר בהצלחה');
+        loadEmployees();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function deleteEmployee(id, name) {
+      if (!confirm(`למחוק את ${name}?`)) return;
+      await api(`/api/employees/${id}`, { method: 'DELETE' });
+      showToast('נמחק');
+      loadEmployees();
+    }
+
+    loadEmployees();
+  </script>
+</body>
+</html>

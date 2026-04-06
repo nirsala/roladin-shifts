@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ניהול זמינות - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo"><h1>רולדין</h1><small>סידור עבודה</small></div>
+      <nav>
+        <a href="/admin/"><span class="icon">📊</span> דשבורד</a>
+        <a href="/admin/employees.html"><span class="icon">👥</span> עובדים</a>
+        <a href="/admin/shifts-config.html"><span class="icon">⚙️</span> הגדרת משמרות</a>
+        <a href="/admin/availability.html" class="active"><span class="icon">📝</span> זמינות</a>
+        <a href="/admin/schedule.html"><span class="icon">📋</span> סידור עבודה</a>
+        <a href="/admin/stats.html"><span class="icon">📈</span> סטטיסטיקות</a>
+        <a href="#" onclick="clearToken();location.href='/admin/login.html'"><span class="icon">🚪</span> יציאה</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h2>ניהול זמינות</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="weekSelect" class="form-control" style="width:auto" onchange="loadStatus()"></select>
+        </div>
+      </div>
+
+      <div id="weekNotOpen" style="display:none">
+        <div class="card" style="text-align:center;padding:40px">
+          <h3 style="margin-bottom:16px">השבוע לא נפתח להגשות</h3>
+          <div class="form-group" style="max-width:300px;margin:0 auto">
+            <label>דדליין להגשה</label>
+            <input type="datetime-local" id="deadline" class="form-control">
+          </div>
+          <div class="form-group" style="max-width:300px;margin:8px auto">
+            <label><input type="checkbox" id="mandatory"> הגשה חובה</label>
+          </div>
+          <button class="btn btn-gold btn-lg" onclick="openWeek()">פתח שבוע להגשות</button>
+        </div>
+      </div>
+
+      <div id="weekOpen" style="display:none">
+        <div class="stats-row">
+          <div class="stat-card"><div class="number" id="submittedCount">0</div><div class="label">הגישו</div></div>
+          <div class="stat-card"><div class="number" id="notSubmittedCount">0</div><div class="label">לא הגישו</div></div>
+          <div class="stat-card"><div class="number" id="deadlineDisplay">-</div><div class="label">דדליין</div></div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-success" onclick="showWaLinks()">📱 שלח לינקי זמינות</button>
+          <button class="btn btn-warning" onclick="showReminders()">⏰ שלח תזכורות</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>סטטוס הגשות</h3></div>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>שם</th><th>סטטוס</th><th>הוגש</th><th>העדפה</th><th>הערות</th></tr></thead>
+              <tbody id="statusTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw '';
+
+    const weekSelect = document.getElementById('weekSelect');
+    const current = getCurrentWeekKey();
+    const next = getNextWeekKey();
+    weekSelect.innerHTML = `
+      <option value="${current}">שבוע נוכחי (${current})</option>
+      <option value="${next}" selected>שבוע הבא (${next})</option>
+    `;
+
+    async function loadStatus() {
+      const week = weekSelect.value;
+      try {
+        const data = await api(`/api/availability/${week}/status`);
+        document.getElementById('weekNotOpen').style.display = 'none';
+        document.getElementById('weekOpen').style.display = 'block';
+
+        document.getElementById('submittedCount').textContent = data.submittedCount;
+        document.getElementById('notSubmittedCount').textContent = data.notSubmitted.length;
+        document.getElementById('deadlineDisplay').textContent = data.deadline
+          ? new Date(data.deadline).toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : 'לא הוגדר';
+
+        const allEmps = [...data.submitted, ...data.notSubmitted.map(e => ({ ...e, submittedAt: null }))];
+        document.getElementById('statusTable').innerHTML = allEmps.map(e => `
+          <tr>
+            <td><strong>${e.name}</strong></td>
+            <td>${e.submittedAt
+              ? '<span style="color:var(--success)">✓ הגיש</span>'
+              : '<span style="color:var(--danger)">✗ לא הגיש</span>'}</td>
+            <td>${e.submittedAt ? formatDateTime(e.submittedAt) : '-'}</td>
+            <td>-</td>
+            <td>-</td>
+          </tr>
+        `).join('');
+      } catch {
+        document.getElementById('weekNotOpen').style.display = 'block';
+        document.getElementById('weekOpen').style.display = 'none';
+      }
+    }
+
+    async function openWeek() {
+      const week = weekSelect.value;
+      const deadline = document.getElementById('deadline').value;
+      const mandatory = document.getElementById('mandatory').checked;
+
+      try {
+        await api(`/api/availability/${week}/open`, {
+          method: 'POST',
+          body: JSON.stringify({ deadline: deadline || null, mandatory })
+        });
+        showToast('שבוע נפתח!');
+        loadStatus();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function showWaLinks() {
+      const week = weekSelect.value;
+      const links = await api(`/api/whatsapp/links/${week}`);
+      showLinksModal('שליחת לינקי זמינות', links);
+    }
+
+    async function showReminders() {
+      const week = weekSelect.value;
+      const links = await api(`/api/whatsapp/reminders/${week}`);
+      if (links.length === 0) { showToast('כולן הגישו!'); return; }
+      showLinksModal('תזכורות', links);
+    }
+
+    function showLinksModal(title, links) {
+      let html = links.map(l => `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
+          <span style="flex:1">${l.name}</span>
+          ${l.submitted ? '<span style="color:var(--success);font-size:0.8em">✓ הגיש</span>' : ''}
+          <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
+        </div>
+      `).join('');
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay active';
+      modal.innerHTML = `<div class="modal"><h3>${title}</h3>${html}
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
+      document.body.appendChild(modal);
+    }
+
+    loadStatus();
+    connectWS(msg => {
+      if (msg.event === 'availability_submitted') loadStatus();
+    });
+  </script>
+</body>
+</html>

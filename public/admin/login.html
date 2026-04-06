@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>התחברות - סידור עבודה רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <h1>רולדין</h1>
+      <p class="subtitle">מערכת סידור עבודה</p>
+      <form id="loginForm">
+        <div class="form-group">
+          <input type="password" id="password" class="form-control" placeholder="הכנס סיסמה" autofocus>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg" style="width:100%">כניסה</button>
+        <p id="error" style="color:var(--danger);margin-top:12px;display:none"></p>
+      </form>
+    </div>
+  </div>
+  <script src="/js/utils.js"></script>
+  <script>
+    if (getToken()) window.location.href = '/admin/';
+
+    document.getElementById('loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      try {
+        const data = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        }).then(r => r.json());
+
+        if (data.token) {
+          setToken(data.token);
+          window.location.href = '/admin/';
+        } else {
+          document.getElementById('error').textContent = data.error || 'שגיאה';
+          document.getElementById('error').style.display = 'block';
+        }
+      } catch {
+        document.getElementById('error').textContent = 'שגיאת חיבור';
+        document.getElementById('error').style.display = 'block';
+      }
+    };
+  </script>
+</body>
+</html>

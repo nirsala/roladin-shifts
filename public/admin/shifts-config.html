@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>הגדרת משמרות - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo"><h1>רולדין</h1><small>סידור עבודה</small></div>
+      <nav>
+        <a href="/admin/"><span class="icon">📊</span> דשבורד</a>
+        <a href="/admin/employees.html"><span class="icon">👥</span> עובדים</a>
+        <a href="/admin/shifts-config.html" class="active"><span class="icon">⚙️</span> הגדרת משמרות</a>
+        <a href="/admin/availability.html"><span class="icon">📝</span> זמינות</a>
+        <a href="/admin/schedule.html"><span class="icon">📋</span> סידור עבודה</a>
+        <a href="/admin/stats.html"><span class="icon">📈</span> סטטיסטיקות</a>
+        <a href="#" onclick="clearToken();location.href='/admin/login.html'"><span class="icon">🚪</span> יציאה</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h2>הגדרת משמרות</h2>
+        <button class="btn btn-gold" onclick="saveConfig()">שמור שינויים</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>משמרות ברירת מחדל</h3>
+          <button class="btn btn-sm btn-success" onclick="addShift()">+ הוספת משמרת</button>
+        </div>
+        <div id="shiftsContainer"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>שינויים לפי יום בשבוע</h3>
+        </div>
+        <p style="color:var(--text-muted);margin-bottom:12px">הגדר שעות / כמות עובדים שונים לימים ספציפיים (כמו שישי)</p>
+        <div id="dayOverrides"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>שינויים לתאריכים ספציפיים</h3>
+          <button class="btn btn-sm btn-info" onclick="addDateOverride()">+ הוספת תאריך</button>
+        </div>
+        <p style="color:var(--text-muted);margin-bottom:12px">סגירה בחגים או שעות מיוחדות</p>
+        <div id="dateOverrides"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>דרישות תפקידים למשמרת</h3>
+        </div>
+        <p style="color:var(--text-muted);margin-bottom:12px">כמה עובדים מכל תפקיד חייבים להיות בכל משמרת</p>
+        <div id="roleReqs"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw '';
+
+    let configData = {};
+    const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+    async function loadConfig() {
+      configData = await api('/api/shifts-config') || {};
+      renderShifts();
+      renderDayOverrides();
+      renderDateOverrides();
+      renderRoleReqs();
+    }
+
+    function renderShifts() {
+      const container = document.getElementById('shiftsContainer');
+      const shifts = configData.defaultShifts || [];
+      container.innerHTML = shifts.map((s, i) => `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <input class="form-control" style="width:100px" value="${s.id}" placeholder="מזהה" data-idx="${i}" data-field="id">
+          <input class="form-control" style="width:100px" value="${s.name}" placeholder="שם" data-idx="${i}" data-field="name">
+          <input class="form-control" type="time" style="width:120px" value="${s.start}" data-idx="${i}" data-field="start">
+          <span>עד</span>
+          <input class="form-control" type="time" style="width:120px" value="${s.end}" data-idx="${i}" data-field="end">
+          <label>עובדים:</label>
+          <input class="form-control" type="number" style="width:60px" value="${s.requiredEmployees}" min="1" data-idx="${i}" data-field="requiredEmployees">
+          <button class="btn btn-sm btn-danger" onclick="removeShift(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function addShift() {
+      if (!configData.defaultShifts) configData.defaultShifts = [];
+      configData.defaultShifts.push({ id: 'new', name: 'חדש', start: '07:00', end: '15:00', requiredEmployees: 3 });
+      renderShifts();
+    }
+
+    function removeShift(idx) {
+      configData.defaultShifts.splice(idx, 1);
+      renderShifts();
+    }
+
+    function renderDayOverrides() {
+      const container = document.getElementById('dayOverrides');
+      const overrides = configData.dayOverrides || {};
+      container.innerHTML = dayNames.map((name, i) => {
+        const ov = overrides[i.toString()];
+        const closed = ov === null;
+        const hasOverride = ov && ov !== null;
+        return `
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
+            <strong style="width:60px">${name}</strong>
+            <label><input type="checkbox" ${closed ? 'checked' : ''} onchange="toggleDayClosed(${i}, this.checked)"> סגור</label>
+            ${!closed && hasOverride ? `<span style="color:var(--info)">מותאם</span>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleDayClosed(day, closed) {
+      if (!configData.dayOverrides) configData.dayOverrides = {};
+      if (closed) {
+        configData.dayOverrides[day.toString()] = null;
+      } else {
+        delete configData.dayOverrides[day.toString()];
+      }
+      renderDayOverrides();
+    }
+
+    function renderDateOverrides() {
+      const container = document.getElementById('dateOverrides');
+      const overrides = configData.dateOverrides || {};
+      const entries = Object.entries(overrides);
+      if (entries.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted)">אין שינויים לתאריכים ספציפיים</p>';
+        return;
+      }
+      container.innerHTML = entries.map(([date, val]) => `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
+          <span>${formatDate(date)}</span>
+          <span>${val === null ? '🔴 סגור' : '🟡 מותאם'}</span>
+          <button class="btn btn-sm btn-danger" onclick="removeDateOverride('${date}')">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function addDateOverride() {
+      const date = prompt('הכנס תאריך (YYYY-MM-DD):');
+      if (!date) return;
+      const isClosed = confirm('האם היום סגור?');
+      if (!configData.dateOverrides) configData.dateOverrides = {};
+      configData.dateOverrides[date] = isClosed ? null : { shifts: [...(configData.defaultShifts || [])] };
+      renderDateOverrides();
+    }
+
+    function removeDateOverride(date) {
+      delete configData.dateOverrides[date];
+      renderDateOverrides();
+    }
+
+    function renderRoleReqs() {
+      const container = document.getElementById('roleReqs');
+      const shifts = configData.defaultShifts || [];
+      const reqs = configData.roleRequirements || {};
+      const roles = ['shift_manager', 'barista', 'cashier', 'kitchen'];
+
+      container.innerHTML = shifts.map(s => {
+        const shiftReqs = reqs[s.id] || {};
+        return `<div style="margin-bottom:12px"><strong>${s.name}</strong>
+          <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+            ${roles.map(r => `
+              <label style="display:flex;align-items:center;gap:4px">
+                <span class="role-badge role-${r}">${roleNames[r]}</span>
+                <input class="form-control" type="number" style="width:50px" min="0" value="${shiftReqs[r] || 0}" data-shift="${s.id}" data-role="${r}">
+              </label>
+            `).join('')}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function saveConfig() {
+      // Collect shift data from inputs
+      document.querySelectorAll('#shiftsContainer input[data-idx]').forEach(inp => {
+        const idx = parseInt(inp.dataset.idx);
+        const field = inp.dataset.field;
+        const val = field === 'requiredEmployees' ? parseInt(inp.value) : inp.value;
+        configData.defaultShifts[idx][field] = val;
+      });
+
+      // Collect role reqs
+      configData.roleRequirements = {};
+      document.querySelectorAll('#roleReqs input[data-shift]').forEach(inp => {
+        const shift = inp.dataset.shift;
+        const role = inp.dataset.role;
+        const val = parseInt(inp.value) || 0;
+        if (val > 0) {
+          if (!configData.roleRequirements[shift]) configData.roleRequirements[shift] = {};
+          configData.roleRequirements[shift][role] = val;
+        }
+      });
+
+      try {
+        await api('/api/shifts-config', { method: 'PUT', body: JSON.stringify(configData) });
+        showToast('נשמר בהצלחה');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    loadConfig();
+  </script>
+</body>
+</html>
