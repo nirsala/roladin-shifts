@@ -431,15 +431,15 @@ app.put('/api/swap-requests/:id', auth.requireAdmin, (req, res) => {
 
 // ==================== WHATSAPP ====================
 app.get('/api/whatsapp/links/:weekKey', auth.requireAdmin, (req, res) => {
-  res.json(whatsapp.getAvailabilityLinks(req.params.weekKey));
+  res.json(whatsapp.getAvailabilityLinks(req.params.weekKey, req));
 });
 
 app.get('/api/whatsapp/reminders/:weekKey', auth.requireAdmin, (req, res) => {
-  res.json(whatsapp.getReminderLinks(req.params.weekKey));
+  res.json(whatsapp.getReminderLinks(req.params.weekKey, req));
 });
 
 app.get('/api/whatsapp/schedule-links/:weekKey', auth.requireAdmin, (req, res) => {
-  res.json(whatsapp.getSchedulePublishedLinks(req.params.weekKey));
+  res.json(whatsapp.getSchedulePublishedLinks(req.params.weekKey, req));
 });
 
 // ==================== DASHBOARD ====================
