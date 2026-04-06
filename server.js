@@ -20,7 +20,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => res.redirect('/admin/login.html'));
 
-// --- Init ---
+// --- Init: seed data from defaults if data/ is empty ---
+storage.seedFromDefaults();
 auth.initAdmin();
 storage.read('employees', []);
 storage.read('shifts-config', {
