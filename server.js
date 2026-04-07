@@ -347,16 +347,47 @@ app.get('/api/my-schedule/:token', (req, res) => {
     }
   }
 
+  // Get pending swap requests for this employee
+  const swapRequests = storage.read('swap-requests', []);
+  const mySwaps = swapRequests.filter(s => s.requesterId === emp.id && s.status === 'pending');
+  const incomingSwaps = swapRequests.filter(s =>
+    s.targetEmployees?.includes(emp.id) && s.status === 'pending' && !s.responses?.find(r => r.employeeId === emp.id)
+  );
+
   res.json({
-    employee: { name: emp.name, role: emp.role },
+    employee: { id: emp.id, name: emp.name, role: emp.role, roles: emp.roles || [emp.role || 'general'], token: emp.token },
     mySchedule,
-    fullSchedule
+    fullSchedule,
+    mySwaps,
+    incomingSwaps
   });
 });
 
+// Get employees with same roles who work on a specific shift (for swap targeting)
+app.get('/api/swap-candidates/:token', (req, res) => {
+  const emp = auth.validateEmployeeToken(req.params.token);
+  if (!emp) return res.status(404).json({ error: 'קישור לא תקין' });
+
+  const { weekKey, date, shiftId } = req.query;
+  const employees = storage.read('employees', []).filter(e => e.active && e.id !== emp.id);
+  const empRoles = emp.roles || [emp.role || 'general'];
+
+  // Find employees with at least one matching role
+  const candidates = employees.filter(e => {
+    const otherRoles = e.roles || [e.role || 'general'];
+    return otherRoles.some(r => empRoles.includes(r)) || empRoles.includes('general') || otherRoles.includes('general');
+  });
+
+  res.json(candidates.map(e => ({
+    id: e.id, name: e.name, phone: e.phone, token: e.token,
+    roles: e.roles || [e.role || 'general']
+  })));
+});
+
 // ==================== SWAP REQUESTS ====================
+// Create swap request + get WA links for targets
 app.post('/api/swap-request', (req, res) => {
-  const { token, weekKey, fromDate, fromShift, toDate, toShift, targetEmployeeId, notes } = req.body;
+  const { token, weekKey, fromDate, fromShift, targetEmployeeIds, notes } = req.body;
   const emp = auth.validateEmployeeToken(token);
   if (!emp) return res.status(404).json({ error: 'קישור לא תקין' });
 
@@ -364,18 +395,94 @@ app.post('/api/swap-request', (req, res) => {
     id: uuidv4(),
     requesterId: emp.id,
     requesterName: emp.name,
-    targetEmployeeId,
+    requesterPhone: emp.phone,
+    targetEmployees: targetEmployeeIds || [],
     weekKey,
     fromDate, fromShift,
-    toDate, toShift,
     notes: notes || '',
     status: 'pending',
+    responses: [],
     createdAt: new Date().toISOString()
   };
 
   storage.update('swap-requests', list => [...list, swap], []);
   broadcast('swap_requested', swap);
-  res.status(201).json(swap);
+
+  // Generate WA links for the requesting employee to send
+  const employees = storage.read('employees', []);
+  const baseUrl = whatsapp.getBaseUrl(req);
+  const waLinks = (targetEmployeeIds || []).map(targetId => {
+    const target = employees.find(e => e.id === targetId);
+    if (!target) return null;
+    const respondUrl = `${baseUrl}/employee/swap-respond.html?swapId=${swap.id}&token=${target.token}`;
+    const message = `שלום ${target.name} 👋\n${emp.name} מבקש/ת להחליף משמרת:\n📅 ${fromDate} - ${fromShift}\n${notes ? '💬 ' + notes : ''}\n\nלתגובה:\n${respondUrl}`;
+    return {
+      id: target.id,
+      name: target.name,
+      phone: target.phone,
+      waLink: whatsapp.buildWhatsAppLink(target.phone, message)
+    };
+  }).filter(Boolean);
+
+  res.status(201).json({ swap, waLinks });
+});
+
+// Employee responds to swap: accept or decline
+app.post('/api/swap-request/:id/respond', (req, res) => {
+  const { token, action, offerShiftDate, offerShiftId } = req.body;
+  const emp = auth.validateEmployeeToken(token);
+  if (!emp) return res.status(404).json({ error: 'קישור לא תקין' });
+
+  let swap = null;
+  storage.update('swap-requests', list => {
+    const s = list.find(x => x.id === req.params.id);
+    if (!s) return list;
+    if (!s.responses) s.responses = [];
+    // Prevent duplicate responses
+    if (s.responses.find(r => r.employeeId === emp.id)) return list;
+    s.responses.push({
+      employeeId: emp.id,
+      employeeName: emp.name,
+      employeePhone: emp.phone,
+      action, // 'accept' or 'decline'
+      offerShiftDate: offerShiftDate || null,
+      offerShiftId: offerShiftId || null,
+      respondedAt: new Date().toISOString()
+    });
+    swap = { ...s };
+    return list;
+  }, []);
+
+  if (!swap) return res.status(404).json({ error: 'בקשה לא נמצאה' });
+
+  broadcast('swap_response', { swapId: swap.id, employeeName: emp.name, action });
+
+  // If accepted → notify requester via WA link + notify manager
+  const baseUrl = whatsapp.getBaseUrl(req);
+  const result = { success: true };
+
+  if (action === 'accept') {
+    // WA link for requester to know someone accepted
+    const requester = storage.read('employees', []).find(e => e.id === swap.requesterId);
+    if (requester) {
+      const msg = `שלום ${requester.name} 👋\n${emp.name} הסכימ/ה להחליף איתך משמרת!\n📅 ${swap.fromDate} - ${swap.fromShift}\nממתין לאישור מנהל.`;
+      result.requesterWaLink = whatsapp.buildWhatsAppLink(requester.phone, msg);
+    }
+    // WA link for manager
+    const settings = storage.read('settings');
+    result.managerMessage = `בקשת החלפה חדשה ממתינה לאישור:\n${swap.requesterName} ↔ ${emp.name}\n📅 ${swap.fromDate} - ${swap.fromShift}\n\nכנס למערכת לאשר:\n${baseUrl}/admin/messages.html`;
+    result.message = 'הבקשה נשלחה! ממתין לאישור מנהל.';
+  } else {
+    // Notify requester of decline
+    const requester = storage.read('employees', []).find(e => e.id === swap.requesterId);
+    if (requester) {
+      const msg = `שלום ${requester.name},\n${emp.name} לא יכול/ה להחליף משמרת ב-${swap.fromDate}. נסה/י עובד/ת אחר/ת.`;
+      result.requesterWaLink = whatsapp.buildWhatsAppLink(requester.phone, msg);
+    }
+    result.message = 'התגובה נשלחה.';
+  }
+
+  res.json(result);
 });
 
 app.get('/api/swap-requests', auth.requireAdmin, (req, res) => {

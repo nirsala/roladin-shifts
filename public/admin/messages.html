@@ -109,13 +109,14 @@
         if (s.responses && s.responses.length > 0) {
           responsesHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
             <strong style="font-size:0.85em;color:var(--text-muted)">תגובות:</strong>
-            ${s.responses.map((r, i) => `
-              <div style="display:flex;align-items:center;gap:8px;margin-top:4px;padding:6px;background:var(--bg);border-radius:6px">
-                <span style="flex:1"><strong>${r.employeeName}</strong> - ${r.action === 'take' ? 'רוצה לקחת' : 'רוצה להחליף עם ' + (r.offerShiftDate || '') + ' ' + (r.offerShiftId || '')}</span>
-                ${s.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveSwap('${s.id}', ${i})">אשר</button>` : ''}
+            ${s.responses.map((r, i) => {
+              const actionLabel = r.action === 'accept' ? '✅ מסכים/ה' : r.action === 'take' ? '✅ רוצה לקחת' : '❌ דחה';
+              return `<div style="display:flex;align-items:center;gap:8px;margin-top:4px;padding:6px;background:var(--bg);border-radius:6px">
+                <span style="flex:1"><strong>${r.employeeName}</strong> - ${actionLabel}</span>
+                ${s.status === 'pending' && r.action !== 'decline' ? `<button class="btn btn-sm btn-success" onclick="approveSwap('${s.id}', ${i})">אשר החלפה</button>` : ''}
                 ${s.approvedResponseIndex === i ? '<span style="color:var(--success)">✓ אושר</span>' : ''}
-              </div>
-            `).join('')}
+              </div>`;
+            }).join('')}
           </div>`;
         }
 

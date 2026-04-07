@@ -6,11 +6,14 @@
   <title>הסידור שלי - רולדין</title>
   <link rel="stylesheet" href="/css/style.css">
   <style>
-    .shift-card { display:flex; align-items:center; gap:12px; padding:12px; }
+    .shift-card { display:flex; align-items:center; gap:12px; padding:12px; flex-wrap:wrap; }
     .shift-date { background:var(--gold); color:var(--bg); width:50px; height:50px; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; }
     .shift-date .day { font-size:0.7em; }
-    .shift-date .num { font-size:1.2em; font-weight:bold; }
+    .shift-date .num { font-size:1.1em; font-weight:bold; }
     .swap-btn { margin-right:auto; }
+    .candidate-item { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg-input); border-radius:8px; margin-bottom:6px; }
+    .candidate-item label { display:flex; align-items:center; gap:6px; flex:1; cursor:pointer; }
+    .incoming-swap { background:rgba(212,168,83,0.1); border:1px solid var(--gold); border-radius:12px; padding:16px; margin-bottom:12px; }
   </style>
 </head>
 <body>
@@ -24,6 +27,12 @@
     <div id="error" style="display:none;text-align:center;padding:40px;color:var(--danger)"></div>
 
     <div id="content" style="display:none">
+
+      <!-- Incoming swap requests -->
+      <div id="incomingSection" style="display:none;margin-bottom:20px">
+        <h3 style="color:var(--warning);margin-bottom:12px">📬 בקשות החלפה שקיבלת</h3>
+        <div id="incomingSwaps"></div>
+      </div>
 
       <!-- My Shifts -->
       <h3 style="color:var(--gold);margin-bottom:12px">המשמרות שלי</h3>
@@ -53,6 +62,10 @@
       shift_manager: '#e74c3c', manager: '#8e44ad', barista: '#3498db',
       baker: '#e67e22', cashier: '#2ecc71', kitchen: '#f39c12', general: '#95a5a6'
     };
+    const roleNames = {
+      shift_manager: 'אחמ"ש', manager: 'מנהל', barista: 'בריסטה',
+      baker: 'אופה', cashier: 'קופאי', kitchen: 'מטבח', general: 'כללי'
+    };
 
     let scheduleData = null;
 
@@ -74,12 +87,79 @@
         document.getElementById('content').style.display = 'block';
         document.getElementById('empName').textContent = scheduleData.employee.name;
 
+        renderIncomingSwaps();
         renderMyShifts();
         renderFullSchedule();
       } catch (err) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('error').style.display = 'block';
         document.getElementById('error').textContent = err.message || 'שגיאה';
+      }
+    }
+
+    function renderIncomingSwaps() {
+      const incoming = scheduleData.incomingSwaps || [];
+      if (incoming.length === 0) {
+        document.getElementById('incomingSection').style.display = 'none';
+        return;
+      }
+      document.getElementById('incomingSection').style.display = 'block';
+      document.getElementById('incomingSwaps').innerHTML = incoming.map(s => {
+        const d = new Date(s.fromDate);
+        const dayName = dayNames[d.getDay()] || '';
+        return `<div class="incoming-swap">
+          <strong>${s.requesterName}</strong> מבקש/ת להחליף:
+          <div style="margin:8px 0;font-size:1.1em">📅 ${dayName} ${d.getDate()}.${d.getMonth()+1} - <strong>${s.fromShift}</strong></div>
+          ${s.notes ? `<div style="color:var(--text-muted)">💬 ${s.notes}</div>` : ''}
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-success" onclick="respondSwap('${s.id}','accept')">✓ מסכים/ה להחליף</button>
+            <button class="btn btn-danger" onclick="respondSwap('${s.id}','decline')">✕ לא יכול/ה</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function respondSwap(swapId, action) {
+      try {
+        const res = await fetch(`/api/swap-request/${swapId}/respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, action })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        if (action === 'accept' && data.requesterWaLink) {
+          // Show WA link to notify the requester
+          const overlay = document.createElement('div');
+          overlay.className = 'modal-overlay active';
+          overlay.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;justify-content:center;align-items:center';
+          overlay.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;width:90%;max-width:400px;text-align:center">
+            <h3 style="color:var(--success);margin-bottom:12px">✓ אישרת את ההחלפה!</h3>
+            <p style="color:var(--text-muted);margin-bottom:16px">ממתין לאישור מנהל. שלח/י הודעה למבקש/ת:</p>
+            <a href="${data.requesterWaLink}" target="_blank" class="wa-link" style="display:inline-flex;padding:10px 20px;font-size:1em">📱 שלח הודעה</a>
+            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove();loadSchedule()" style="margin-top:12px;display:block;width:100%">סגור</button>
+          </div>`;
+          overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); loadSchedule(); } });
+          document.body.appendChild(overlay);
+        } else if (action === 'decline' && data.requesterWaLink) {
+          const overlay = document.createElement('div');
+          overlay.className = 'modal-overlay active';
+          overlay.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;justify-content:center;align-items:center';
+          overlay.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;width:90%;max-width:400px;text-align:center">
+            <h3 style="color:var(--text-muted);margin-bottom:12px">דחית את הבקשה</h3>
+            <p style="color:var(--text-muted);margin-bottom:16px">שלח/י הודעה למבקש/ת:</p>
+            <a href="${data.requesterWaLink}" target="_blank" class="wa-link" style="display:inline-flex;padding:10px 20px;font-size:1em">📱 שלח הודעה</a>
+            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove();loadSchedule()" style="margin-top:12px;display:block;width:100%">סגור</button>
+          </div>`;
+          overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); loadSchedule(); } });
+          document.body.appendChild(overlay);
+        } else {
+          alert(data.message || 'נשלח!');
+          loadSchedule();
+        }
+      } catch (err) {
+        alert(err.message || 'שגיאה');
       }
     }
 
@@ -99,11 +179,106 @@
             <div class="num">${d.getDate()}.${d.getMonth()+1}</div>
           </div>
           <div><strong>${s.shiftId}</strong></div>
-          <button class="btn btn-sm btn-outline swap-btn" onclick="requestSwap('${currentWeek.weekKey}','${s.date}','${s.shiftId}')">
-            🔄 בקשת החלפה
+          <button class="btn btn-sm btn-outline swap-btn" onclick="openSwapFlow('${currentWeek.weekKey}','${s.date}','${s.shiftId}')">
+            🔄 החלפה
           </button>
         </div>`;
       }).join('');
+    }
+
+    async function openSwapFlow(weekKey, date, shiftId) {
+      // Fetch candidates with matching roles
+      try {
+        const res = await fetch(`/api/swap-candidates/${token}?weekKey=${weekKey}&date=${date}&shiftId=${shiftId}`);
+        const candidates = await res.json();
+
+        if (candidates.length === 0) {
+          alert('אין עובדים עם תפקיד מתאים להחלפה');
+          return;
+        }
+
+        const d = new Date(date);
+        const dayName = dayNames[d.getDay()] || '';
+
+        let html = `
+          <p style="color:var(--text-muted);margin-bottom:12px">בחר/י את מי לשלוח בקשת החלפה למשמרת <strong>${dayName} ${d.getDate()}.${d.getMonth()+1} - ${shiftId}</strong></p>
+          <div id="candidatesList">
+            ${candidates.map(c => {
+              const badges = (c.roles || ['general']).map(r => `<span style="font-size:0.75em;padding:1px 6px;border-radius:8px;background:${roleColors[r]||'#95a5a6'}22;color:${roleColors[r]||'#95a5a6'}">${roleNames[r]||r}</span>`).join(' ');
+              return `<div class="candidate-item">
+                <label>
+                  <input type="checkbox" class="swap-target-cb" value="${c.id}" checked>
+                  <strong>${c.name}</strong> ${badges}
+                </label>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="margin-top:12px">
+            <textarea id="swapNotes" class="form-control" rows="2" placeholder="סיבה / הערה (אופציונלי)"></textarea>
+          </div>
+          <button class="btn btn-gold" style="width:100%;margin-top:12px" onclick="sendSwapRequest('${weekKey}','${date}','${shiftId}')">שלח בקשת החלפה</button>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay active';
+        overlay.id = 'swapModal';
+        overlay.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;justify-content:center;align-items:center';
+        overlay.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;width:90%;max-width:450px;max-height:80vh;overflow-y:auto;position:relative">
+          <button style="position:sticky;top:0;float:left;background:var(--bg-input);border:none;color:var(--text);width:32px;height:32px;border-radius:50%;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="this.closest('.modal-overlay').remove()">✕</button>
+          <h3 style="color:var(--gold);margin-bottom:12px">🔄 בקשת החלפה</h3>
+          ${html}
+        </div>`;
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        document.body.appendChild(overlay);
+      } catch (err) {
+        alert(err.message || 'שגיאה');
+      }
+    }
+
+    async function sendSwapRequest(weekKey, date, shiftId) {
+      const targetIds = [...document.querySelectorAll('.swap-target-cb:checked')].map(cb => cb.value);
+      if (targetIds.length === 0) { alert('בחר/י לפחות עובד/ת אחד/ת'); return; }
+
+      const notes = document.getElementById('swapNotes')?.value?.trim() || '';
+
+      try {
+        const res = await fetch('/api/swap-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, weekKey, fromDate: date, fromShift: shiftId, targetEmployeeIds: targetIds, notes })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        // Remove the swap modal
+        document.getElementById('swapModal')?.remove();
+
+        // Show WA links to send to targets
+        if (data.waLinks && data.waLinks.length > 0) {
+          let linksHtml = data.waLinks.map(l => `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px;background:var(--bg-input);border-radius:8px">
+              <strong style="flex:1">${l.name}</strong>
+              <a href="${l.waLink}" target="_blank" class="wa-link" style="padding:8px 16px">📱 שלח</a>
+            </div>
+          `).join('');
+
+          const overlay = document.createElement('div');
+          overlay.className = 'modal-overlay active';
+          overlay.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;justify-content:center;align-items:center';
+          overlay.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:24px;width:90%;max-width:450px;max-height:80vh;overflow-y:auto;position:relative">
+            <button style="position:sticky;top:0;float:left;background:var(--bg-input);border:none;color:var(--text);width:32px;height:32px;border-radius:50%;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="this.closest('.modal-overlay').remove()">✕</button>
+            <h3 style="color:var(--success);margin-bottom:12px">✓ הבקשה נוצרה!</h3>
+            <p style="color:var(--text-muted);margin-bottom:12px">שלח/י הודעה לעובדים:</p>
+            ${linksHtml}
+          </div>`;
+          overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+          document.body.appendChild(overlay);
+        } else {
+          alert('הבקשה נשלחה!');
+        }
+      } catch (err) {
+        alert(err.message || 'שגיאה');
+      }
     }
 
     function renderFullSchedule() {
@@ -145,22 +320,6 @@
         document.getElementById('msgText').value = '';
         document.getElementById('msgSuccess').style.display = 'block';
         setTimeout(() => document.getElementById('msgSuccess').style.display = 'none', 3000);
-      } catch (err) {
-        alert(err.message || 'שגיאה');
-      }
-    }
-
-    async function requestSwap(weekKey, date, shiftId) {
-      const notes = prompt('סיבה / הערה (אופציונלי):') || '';
-      try {
-        const res = await fetch('/api/swap-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, weekKey, fromDate: date, fromShift: shiftId, notes })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        alert('בקשת ההחלפה נשלחה! המנהל יטפל בקרוב.');
       } catch (err) {
         alert(err.message || 'שגיאה');
       }

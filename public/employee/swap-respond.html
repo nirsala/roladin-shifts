@@ -15,28 +15,21 @@
 
     <div id="loading" style="text-align:center;padding:40px;color:var(--text-muted)">טוען...</div>
     <div id="error" style="display:none;text-align:center;padding:40px;color:var(--danger)"></div>
-    <div id="success" style="display:none;text-align:center;padding:40px">
-      <h2 style="color:var(--success);margin-bottom:12px">✓ התגובה נשלחה!</h2>
-      <p style="color:var(--text-muted)">המנהל יאשר בקרוב ותקבל/י הודעה.</p>
-    </div>
 
     <div id="content" style="display:none">
       <div class="card">
-        <h3 style="color:var(--gold);margin-bottom:12px" id="swapTitle"></h3>
-        <div id="swapDetails" style="color:var(--text-muted);margin-bottom:16px"></div>
+        <h3 style="color:var(--gold);margin-bottom:12px" id="swapInfo"></h3>
+        <div id="swapNotes" style="color:var(--text-muted);margin-bottom:16px"></div>
       </div>
 
       <div class="card">
         <h3 style="color:var(--gold);margin-bottom:12px">מה תרצה/י לעשות?</h3>
-
-        <button class="btn btn-success btn-lg" style="width:100%;margin-bottom:12px" onclick="respond('take')">
-          לקחת את המשמרת (בלי החלפה)
+        <button class="btn btn-success btn-lg" style="width:100%;margin-bottom:12px" onclick="doRespond('accept')">
+          ✓ מסכים/ה להחליף
         </button>
-
-        <div style="margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">
-          <p style="color:var(--text-muted);margin-bottom:8px">או להחליף עם משמרת שלך:</p>
-          <div id="myShiftsList"></div>
-        </div>
+        <button class="btn btn-danger btn-lg" style="width:100%" onclick="doRespond('decline')">
+          ✕ לא יכול/ה
+        </button>
       </div>
     </div>
   </div>
@@ -46,39 +39,35 @@
     const swapId = params.get('swapId');
     const token = params.get('token');
 
+    const dayNames = { 0: 'ראשון', 1: 'שני', 2: 'שלישי', 3: 'רביעי', 4: 'חמישי', 5: 'שישי', 6: 'שבת' };
+
     if (!swapId || !token) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('error').style.display = 'block';
       document.getElementById('error').textContent = 'קישור לא תקין';
     } else {
-      loadSwap();
+      loadData();
     }
 
-    const dayNames = { 0: 'ראשון', 1: 'שני', 2: 'שלישי', 3: 'רביעי', 4: 'חמישי', 5: 'שישי', 6: 'שבת' };
-
-    async function loadSwap() {
+    async function loadData() {
       try {
-        // Get my schedule to show swap options
-        const schedRes = await fetch(`/api/my-schedule/${token}`);
-        if (!schedRes.ok) throw new Error('קישור לא תקין');
-        const schedData = await schedRes.json();
+        const res = await fetch(`/api/my-schedule/${token}`);
+        if (!res.ok) throw new Error('קישור לא תקין');
+        const data = await res.json();
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
-        document.getElementById('empName').textContent = schedData.employee.name;
+        document.getElementById('empName').textContent = data.employee.name;
 
-        // Show current shifts as swap options
-        const currentWeek = schedData.mySchedule[0];
-        if (currentWeek && currentWeek.shifts.length > 0) {
-          document.getElementById('myShiftsList').innerHTML = currentWeek.shifts.map(s => {
-            const d = new Date(s.date);
-            const dayName = dayNames[d.getDay()] || '';
-            return `<button class="btn btn-info" style="width:100%;margin-bottom:6px;justify-content:center" onclick="respond('swap','${s.date}','${s.shiftId}')">
-              החלפה עם: ${dayName} ${d.getDate()}.${d.getMonth()+1} - ${s.shiftId}
-            </button>`;
-          }).join('');
+        // Find the swap in incoming
+        const swap = data.incomingSwaps?.find(s => s.id === swapId);
+        if (swap) {
+          const d = new Date(swap.fromDate);
+          const dayName = dayNames[d.getDay()] || '';
+          document.getElementById('swapInfo').innerHTML = `${swap.requesterName} מבקש/ת להחליף:<br>📅 ${dayName} ${d.getDate()}.${d.getMonth()+1} - <strong>${swap.fromShift}</strong>`;
+          if (swap.notes) document.getElementById('swapNotes').textContent = '💬 ' + swap.notes;
         } else {
-          document.getElementById('myShiftsList').innerHTML = '<p style="color:var(--text-muted)">אין משמרות להחלפה</p>';
+          document.getElementById('swapInfo').textContent = 'בקשת החלפה';
         }
       } catch (err) {
         document.getElementById('loading').style.display = 'none';
@@ -87,23 +76,38 @@
       }
     }
 
-    async function respond(action, offerDate, offerShift) {
+    async function doRespond(action) {
       try {
         const res = await fetch(`/api/swap-request/${swapId}/respond`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            action,
-            offerShiftDate: offerDate || null,
-            offerShiftId: offerShift || null
-          })
+          body: JSON.stringify({ token, action })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
-        document.getElementById('content').style.display = 'none';
-        document.getElementById('success').style.display = 'block';
+        document.getElementById('content').innerHTML = '';
+
+        if (action === 'accept') {
+          let html = `<div style="text-align:center;padding:30px">
+            <h2 style="color:var(--success);margin-bottom:12px">✓ אישרת את ההחלפה!</h2>
+            <p style="color:var(--text-muted);margin-bottom:16px">ממתין לאישור מנהל.</p>`;
+          if (data.requesterWaLink) {
+            html += `<a href="${data.requesterWaLink}" target="_blank" class="wa-link" style="display:inline-flex;padding:10px 20px;font-size:1em">📱 עדכן/י את המבקש/ת</a>`;
+          }
+          html += `</div>`;
+          document.getElementById('content').innerHTML = html;
+        } else {
+          let html = `<div style="text-align:center;padding:30px">
+            <h2 style="color:var(--text-muted);margin-bottom:12px">דחית את הבקשה</h2>`;
+          if (data.requesterWaLink) {
+            html += `<p style="color:var(--text-muted);margin-bottom:16px">עדכן/י את המבקש/ת:</p>
+            <a href="${data.requesterWaLink}" target="_blank" class="wa-link" style="display:inline-flex;padding:10px 20px;font-size:1em">📱 שלח הודעה</a>`;
+          }
+          html += `</div>`;
+          document.getElementById('content').innerHTML = html;
+        }
+        document.getElementById('content').style.display = 'block';
       } catch (err) {
         alert(err.message || 'שגיאה');
       }
