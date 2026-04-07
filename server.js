@@ -230,7 +230,8 @@ app.post('/api/availability/submit/:token', (req, res) => {
 // ==================== SCHEDULES ====================
 app.post('/api/schedules/:weekKey/generate', auth.requireAdmin, (req, res) => {
   const { weekKey } = req.params;
-  const result = generateSchedule(weekKey);
+  const { excludeEmployees } = req.body || {};
+  const result = generateSchedule(weekKey, { excludeEmployees: excludeEmployees || [] });
   if (result.error) return res.status(400).json(result);
 
   storage.update('schedules', data => {
