@@ -5,24 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>הסידור שלי - רולדין</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .shift-card { display:flex; align-items:center; gap:12px; padding:12px; }
+    .shift-date { background:var(--gold); color:var(--bg); width:50px; height:50px; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; }
+    .shift-date .day { font-size:0.7em; }
+    .shift-date .num { font-size:1.2em; font-weight:bold; }
+    .swap-btn { margin-right:auto; }
+  </style>
 </head>
 <body>
   <div class="employee-container">
     <div class="employee-header">
       <h1>רולדין - הסידור שלי</h1>
       <div class="emp-name" id="empName"></div>
-      <div id="empRole" style="margin-top:4px"></div>
     </div>
 
     <div id="loading" style="text-align:center;padding:40px;color:var(--text-muted)">טוען...</div>
     <div id="error" style="display:none;text-align:center;padding:40px;color:var(--danger)"></div>
 
     <div id="content" style="display:none">
-      <div id="myShiftsSection">
-        <h3 style="color:var(--gold);margin-bottom:12px">המשמרות שלי</h3>
-        <div id="myShifts"></div>
+
+      <!-- My Shifts -->
+      <h3 style="color:var(--gold);margin-bottom:12px">המשמרות שלי</h3>
+      <div id="myShifts"></div>
+
+      <!-- Message to Manager -->
+      <div class="card" style="margin-top:20px">
+        <h3 style="color:var(--gold);margin-bottom:8px">💬 הודעה למנהל</h3>
+        <textarea id="msgText" class="form-control" rows="2" placeholder="כתוב/י הודעה למנהל..."></textarea>
+        <button class="btn btn-gold" style="margin-top:8px" onclick="sendMessage()">שלח הודעה</button>
+        <div id="msgSuccess" style="display:none;color:var(--success);margin-top:8px">✓ ההודעה נשלחה!</div>
       </div>
 
+      <!-- Full Schedule -->
       <div style="margin-top:24px">
         <h3 style="color:var(--gold);margin-bottom:12px">סידור מלא - השבוע</h3>
         <div id="fullSchedule"></div>
@@ -33,12 +48,13 @@
   <script>
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
-
-    const dayNames = { 0: 'ראשון', 1: 'שני', 2: 'שלישי', 3: 'ר��יעי', 4: 'חמישי', 5: 'שישי', 6: 'שבת' };
+    const dayNames = { 0: 'ראשון', 1: 'שני', 2: 'שלישי', 3: 'רביעי', 4: 'חמישי', 5: 'שישי', 6: 'שבת' };
     const roleColors = {
-      shift_manager: '#e74c3c', barista: '#3498db', cashier: '#2ecc71',
-      kitchen: '#f39c12', general: '#95a5a6'
+      shift_manager: '#e74c3c', manager: '#8e44ad', barista: '#3498db',
+      baker: '#e67e22', cashier: '#2ecc71', kitchen: '#f39c12', general: '#95a5a6'
     };
+
+    let scheduleData = null;
 
     if (!token) {
       document.getElementById('loading').style.display = 'none';
@@ -51,64 +67,102 @@
     async function loadSchedule() {
       try {
         const res = await fetch(`/api/my-schedule/${token}`);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error);
-        }
-        const data = await res.json();
+        if (!res.ok) throw new Error((await res.json()).error);
+        scheduleData = await res.json();
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
-        document.getElementById('empName').textContent = data.employee.name;
-        document.getElementById('empRole').innerHTML = `<span class="role-badge role-${data.employee.role}">${data.employee.role}</span>`;
+        document.getElementById('empName').textContent = scheduleData.employee.name;
 
-        // My shifts
-        const currentWeek = data.mySchedule[0];
-        if (!currentWeek || currentWeek.shifts.length === 0) {
-          document.getElementById('myShifts').innerHTML = '<div class="card"><p style="color:var(--text-muted);padding:12px">אין משמרות משובצות</p></div>';
-        } else {
-          document.getElementById('myShifts').innerHTML = currentWeek.shifts.map(s => {
-            const d = new Date(s.date);
-            const dayName = dayNames[d.getDay()] || '';
-            return `<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px">
-              <div style="background:var(--gold);color:var(--bg);width:50px;height:50px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center">
-                <div style="font-size:0.7em">${dayName}</div>
-                <div style="font-size:1.2em;font-weight:bold">${d.getDate()}.${d.getMonth()+1}</div>
-              </div>
-              <div>
-                <strong>${s.shiftId}</strong>
-              </div>
-            </div>`;
-          }).join('');
-        }
-
-        // Full schedule
-        if (data.fullSchedule) {
-          const days = Object.entries(data.fullSchedule.days).filter(([,v]) => v !== null);
-          let html = '';
-          for (const [dateStr, shifts] of days) {
-            const d = new Date(dateStr);
-            const dayName = dayNames[d.getDay()] || '';
-            html += `<div class="card" style="margin-bottom:8px">
-              <div class="day-name" style="color:var(--gold);margin-bottom:8px">${dayName} ${d.getDate()}.${d.getMonth()+1}</div>`;
-            for (const [shiftId, emps] of Object.entries(shifts)) {
-              html += `<div style="margin-bottom:6px"><strong style="color:var(--text-muted)">${shiftId}:</strong> `;
-              html += emps.map(e => {
-                const color = roleColors[e.role] || '#95a5a6';
-                return `<span style="display:inline-block;padding:2px 6px;margin:1px;border-radius:4px;font-size:0.85em;background:${color}22;color:${color}">${e.name}</span>`;
-              }).join('');
-              html += '</div>';
-            }
-            html += '</div>';
-          }
-          document.getElementById('fullSchedule').innerHTML = html || '<p style="color:var(--text-muted)">אין סידור מפורסם</p>';
-        } else {
-          document.getElementById('fullSchedule').innerHTML = '<p style="color:var(--text-muted)">אין סידור מפורסם עדיין</p>';
-        }
+        renderMyShifts();
+        renderFullSchedule();
       } catch (err) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('error').style.display = 'block';
         document.getElementById('error').textContent = err.message || 'שגיאה';
+      }
+    }
+
+    function renderMyShifts() {
+      const currentWeek = scheduleData.mySchedule[0];
+      if (!currentWeek || currentWeek.shifts.length === 0) {
+        document.getElementById('myShifts').innerHTML = '<div class="card"><p style="color:var(--text-muted);padding:12px">אין משמרות משובצות</p></div>';
+        return;
+      }
+
+      document.getElementById('myShifts').innerHTML = currentWeek.shifts.map(s => {
+        const d = new Date(s.date);
+        const dayName = dayNames[d.getDay()] || '';
+        return `<div class="card shift-card">
+          <div class="shift-date">
+            <div class="day">${dayName}</div>
+            <div class="num">${d.getDate()}.${d.getMonth()+1}</div>
+          </div>
+          <div><strong>${s.shiftId}</strong></div>
+          <button class="btn btn-sm btn-outline swap-btn" onclick="requestSwap('${currentWeek.weekKey}','${s.date}','${s.shiftId}')">
+            🔄 בקשת החלפה
+          </button>
+        </div>`;
+      }).join('');
+    }
+
+    function renderFullSchedule() {
+      if (!scheduleData.fullSchedule) {
+        document.getElementById('fullSchedule').innerHTML = '<p style="color:var(--text-muted)">אין סידור מפורסם עדיין</p>';
+        return;
+      }
+      const days = Object.entries(scheduleData.fullSchedule.days).filter(([,v]) => v !== null);
+      let html = '';
+      for (const [dateStr, shifts] of days) {
+        const d = new Date(dateStr);
+        const dayName = dayNames[d.getDay()] || '';
+        html += `<div class="card" style="margin-bottom:8px">
+          <div style="color:var(--gold);font-weight:600;margin-bottom:8px">${dayName} ${d.getDate()}.${d.getMonth()+1}</div>`;
+        for (const [shiftId, emps] of Object.entries(shifts)) {
+          html += `<div style="margin-bottom:6px"><strong style="color:var(--text-muted)">${shiftId}:</strong> `;
+          html += emps.map(e => {
+            const color = roleColors[e.role] || '#95a5a6';
+            return `<span style="display:inline-block;padding:2px 6px;margin:1px;border-radius:4px;font-size:0.85em;background:${color}22;color:${color}">${e.name}</span>`;
+          }).join('');
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      document.getElementById('fullSchedule').innerHTML = html || '<p style="color:var(--text-muted)">אין סידור מפורסם</p>';
+    }
+
+    async function sendMessage() {
+      const message = document.getElementById('msgText').value.trim();
+      if (!message) return alert('הכנס הודעה');
+      try {
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, message })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        document.getElementById('msgText').value = '';
+        document.getElementById('msgSuccess').style.display = 'block';
+        setTimeout(() => document.getElementById('msgSuccess').style.display = 'none', 3000);
+      } catch (err) {
+        alert(err.message || 'שגיאה');
+      }
+    }
+
+    async function requestSwap(weekKey, date, shiftId) {
+      const notes = prompt('סיבה / הערה (אופציונלי):') || '';
+      try {
+        const res = await fetch('/api/swap-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, weekKey, fromDate: date, fromShift: shiftId, notes })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        alert('בקשת ההחלפה נשלחה! המנהל יטפל בקרוב.');
+      } catch (err) {
+        alert(err.message || 'שגיאה');
       }
     }
   </script>

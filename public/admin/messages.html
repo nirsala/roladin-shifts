@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>הודעות והחלפות - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo"><h1>רולדין</h1><small>סידור עבודה</small></div>
+      <nav>
+        <a href="/admin/"><span class="icon">📊</span> דשבורד</a>
+        <a href="/admin/employees.html"><span class="icon">👥</span> עובדים</a>
+        <a href="/admin/shifts-config.html"><span class="icon">⚙️</span> הגדרת משמרות</a>
+        <a href="/admin/availability.html"><span class="icon">📝</span> זמינות</a>
+        <a href="/admin/schedule.html"><span class="icon">📋</span> סידור עבודה</a>
+        <a href="/admin/messages.html" class="active"><span class="icon">💬</span> הודעות</a>
+        <a href="/admin/stats.html"><span class="icon">📈</span> סטטיסטיקות</a>
+        <a href="#" onclick="clearToken();location.href='/admin/login.html'"><span class="icon">🚪</span> יציאה</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h2>הודעות והחלפות</h2>
+      </div>
+
+      <!-- Messages Section -->
+      <div class="card">
+        <div class="card-header">
+          <h3>💬 הודעות מעובדים</h3>
+          <span id="unreadBadge" style="background:var(--danger);color:white;padding:2px 8px;border-radius:10px;font-size:0.8em;display:none"></span>
+        </div>
+        <div id="messagesList"></div>
+      </div>
+
+      <!-- Swap Requests Section -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <h3>🔄 בקשות החלפה</h3>
+        </div>
+        <div id="swapsList"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script>
+    if (!requireAuth()) throw '';
+
+    async function loadMessages() {
+      const messages = await api('/api/messages') || [];
+      const container = document.getElementById('messagesList');
+      const unread = messages.filter(m => !m.read).length;
+
+      document.getElementById('unreadBadge').style.display = unread > 0 ? '' : 'none';
+      document.getElementById('unreadBadge').textContent = unread + ' חדשות';
+
+      if (messages.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);padding:8px">אין הודעות</p>';
+        return;
+      }
+
+      container.innerHTML = messages.map(m => `
+        <div style="display:flex;gap:10px;padding:10px;margin-bottom:6px;background:${m.read ? 'var(--bg-input)' : 'rgba(212,168,83,0.1)'};border-radius:8px;border-right:3px solid ${m.read ? 'var(--border)' : 'var(--gold)'}">
+          <div style="flex:1">
+            <strong style="color:${m.read ? 'var(--text)' : 'var(--gold)'}">${m.employeeName}</strong>
+            <span style="color:var(--text-muted);font-size:0.8em;margin-right:8px">${formatDateTime(m.createdAt)}</span>
+            <p style="margin-top:4px;font-size:0.9em">${m.message}</p>
+          </div>
+          <div style="display:flex;gap:4px;align-items:flex-start">
+            ${!m.read ? `<button class="btn btn-sm btn-outline" onclick="markRead('${m.id}')">✓</button>` : ''}
+            <button class="btn btn-sm btn-danger" onclick="deleteMsg('${m.id}')">✕</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function markRead(id) {
+      await api(`/api/messages/${id}/read`, { method: 'PUT' });
+      loadMessages();
+    }
+
+    async function deleteMsg(id) {
+      await api(`/api/messages/${id}`, { method: 'DELETE' });
+      loadMessages();
+    }
+
+    async function loadSwaps() {
+      const swaps = await api('/api/swap-requests') || [];
+      const container = document.getElementById('swapsList');
+
+      if (swaps.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);padding:8px">אין בקשות החלפה</p>';
+        return;
+      }
+
+      // Show newest first
+      swaps.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+      container.innerHTML = swaps.map(s => {
+        const statusColors = { pending: 'var(--warning)', approved: 'var(--success)', rejected: 'var(--danger)' };
+        const statusLabels = { pending: 'ממתין', approved: 'אושר', rejected: 'נדחה' };
+        const statusColor = statusColors[s.status] || 'var(--text-muted)';
+
+        let responsesHtml = '';
+        if (s.responses && s.responses.length > 0) {
+          responsesHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+            <strong style="font-size:0.85em;color:var(--text-muted)">תגובות:</strong>
+            ${s.responses.map((r, i) => `
+              <div style="display:flex;align-items:center;gap:8px;margin-top:4px;padding:6px;background:var(--bg);border-radius:6px">
+                <span style="flex:1"><strong>${r.employeeName}</strong> - ${r.action === 'take' ? 'רוצה לקחת' : 'רוצה להחליף עם ' + (r.offerShiftDate || '') + ' ' + (r.offerShiftId || '')}</span>
+                ${s.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveSwap('${s.id}', ${i})">אשר</button>` : ''}
+                ${s.approvedResponseIndex === i ? '<span style="color:var(--success)">✓ אושר</span>' : ''}
+              </div>
+            `).join('')}
+          </div>`;
+        }
+
+        let actionsHtml = '';
+        if (s.status === 'pending') {
+          actionsHtml = `<div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn btn-sm btn-info" onclick="broadcastSwap('${s.id}')">📱 שלח לעובדות בוואטסאפ</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectSwap('${s.id}')">דחה</button>
+          </div>`;
+        } else {
+          actionsHtml = `<div style="margin-top:8px">
+            <button class="btn btn-sm btn-outline" onclick="notifySwapResult('${s.id}')">📱 שלח הודעה לעובדות</button>
+          </div>`;
+        }
+
+        return `
+        <div class="card" style="margin-bottom:8px;border-right:3px solid ${statusColor}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <strong>${s.requesterName}</strong>
+            <span style="color:${statusColor};font-size:0.85em">${statusLabels[s.status]}</span>
+            <span style="color:var(--text-muted);font-size:0.8em;margin-right:auto">${formatDateTime(s.createdAt)}</span>
+          </div>
+          <div style="font-size:0.9em">
+            📅 ${s.fromDate} - משמרת <strong>${s.fromShift}</strong>
+            ${s.notes ? `<br>💬 ${s.notes}` : ''}
+          </div>
+          ${responsesHtml}
+          ${actionsHtml}
+        </div>`;
+      }).join('');
+    }
+
+    async function broadcastSwap(swapId) {
+      try {
+        const links = await api(`/api/swap-request/${swapId}/wa-links`);
+        let html = links.map(l => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
+            <span style="flex:1">${l.name}</span>
+            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
+          </div>
+        `).join('');
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `<div class="modal"><h3>שליחת בקשת החלפה לעובדות</h3>${html}
+          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
+        document.body.appendChild(modal);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function approveSwap(swapId, responseIndex) {
+      if (!confirm('לאשר את ההחלפה?')) return;
+      try {
+        await api(`/api/swap-requests/${swapId}/approve`, {
+          method: 'PUT',
+          body: JSON.stringify({ responseIndex })
+        });
+        showToast('ההחלפה אושרה!');
+        loadSwaps();
+        // Show notification links
+        notifySwapResult(swapId);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function rejectSwap(swapId) {
+      if (!confirm('לדחות את הבקשה?')) return;
+      try {
+        await api(`/api/swap-requests/${swapId}/reject`, { method: 'PUT' });
+        showToast('הבקשה נדחתה');
+        loadSwaps();
+        notifySwapResult(swapId);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function notifySwapResult(swapId) {
+      try {
+        const links = await api(`/api/swap-requests/${swapId}/notify-links`);
+        if (links.length === 0) return;
+        let html = links.map(l => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
+            <span style="flex:1"><strong>${l.name}</strong> <span style="color:var(--text-muted);font-size:0.8em">(${l.role})</span></span>
+            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
+          </div>
+        `).join('');
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `<div class="modal"><h3>שליחת הודעה על תוצאת ההחלפה</h3>${html}
+          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
+        document.body.appendChild(modal);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    loadMessages();
+    loadSwaps();
+    connectWS(msg => {
+      if (['new_message'].includes(msg.event)) loadMessages();
+      if (['swap_requested', 'swap_response', 'swap_approved', 'swap_rejected'].includes(msg.event)) loadSwaps();
+    });
+  </script>
+</body>
+</html>

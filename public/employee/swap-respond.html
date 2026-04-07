@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>בקשת החלפה - רולדין</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="employee-container">
+    <div class="employee-header">
+      <h1>רולדין - בקשת החלפה</h1>
+      <div class="emp-name" id="empName"></div>
+    </div>
+
+    <div id="loading" style="text-align:center;padding:40px;color:var(--text-muted)">טוען...</div>
+    <div id="error" style="display:none;text-align:center;padding:40px;color:var(--danger)"></div>
+    <div id="success" style="display:none;text-align:center;padding:40px">
+      <h2 style="color:var(--success);margin-bottom:12px">✓ התגובה נשלחה!</h2>
+      <p style="color:var(--text-muted)">המנהל יאשר בקרוב ותקבל/י הודעה.</p>
+    </div>
+
+    <div id="content" style="display:none">
+      <div class="card">
+        <h3 style="color:var(--gold);margin-bottom:12px" id="swapTitle"></h3>
+        <div id="swapDetails" style="color:var(--text-muted);margin-bottom:16px"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="color:var(--gold);margin-bottom:12px">מה תרצה/י לעשות?</h3>
+
+        <button class="btn btn-success btn-lg" style="width:100%;margin-bottom:12px" onclick="respond('take')">
+          לקחת את המשמרת (בלי החלפה)
+        </button>
+
+        <div style="margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">
+          <p style="color:var(--text-muted);margin-bottom:8px">או להחליף עם משמרת שלך:</p>
+          <div id="myShiftsList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const swapId = params.get('swapId');
+    const token = params.get('token');
+
+    if (!swapId || !token) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = 'קישור לא תקין';
+    } else {
+      loadSwap();
+    }
+
+    const dayNames = { 0: 'ראשון', 1: 'שני', 2: 'שלישי', 3: 'רביעי', 4: 'חמישי', 5: 'שישי', 6: 'שבת' };
+
+    async function loadSwap() {
+      try {
+        // Get my schedule to show swap options
+        const schedRes = await fetch(`/api/my-schedule/${token}`);
+        if (!schedRes.ok) throw new Error('קישור לא תקין');
+        const schedData = await schedRes.json();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+        document.getElementById('empName').textContent = schedData.employee.name;
+
+        // Show current shifts as swap options
+        const currentWeek = schedData.mySchedule[0];
+        if (currentWeek && currentWeek.shifts.length > 0) {
+          document.getElementById('myShiftsList').innerHTML = currentWeek.shifts.map(s => {
+            const d = new Date(s.date);
+            const dayName = dayNames[d.getDay()] || '';
+            return `<button class="btn btn-info" style="width:100%;margin-bottom:6px;justify-content:center" onclick="respond('swap','${s.date}','${s.shiftId}')">
+              החלפה עם: ${dayName} ${d.getDate()}.${d.getMonth()+1} - ${s.shiftId}
+            </button>`;
+          }).join('');
+        } else {
+          document.getElementById('myShiftsList').innerHTML = '<p style="color:var(--text-muted)">אין משמרות להחלפה</p>';
+        }
+      } catch (err) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = err.message || 'שגיאה';
+      }
+    }
+
+    async function respond(action, offerDate, offerShift) {
+      try {
+        const res = await fetch(`/api/swap-request/${swapId}/respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            action,
+            offerShiftDate: offerDate || null,
+            offerShiftId: offerShift || null
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        document.getElementById('content').style.display = 'none';
+        document.getElementById('success').style.display = 'block';
+      } catch (err) {
+        alert(err.message || 'שגיאה');
+      }
+    }
+  </script>
+</body>
+</html>

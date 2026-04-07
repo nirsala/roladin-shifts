@@ -432,6 +432,182 @@ app.put('/api/swap-requests/:id', auth.requireAdmin, (req, res) => {
   res.json(swap);
 });
 
+// ==================== EMPLOYEE MESSAGES ====================
+app.post('/api/messages', (req, res) => {
+  const { token, message } = req.body;
+  const emp = auth.validateEmployeeToken(token);
+  if (!emp) return res.status(404).json({ error: 'קישור לא תקין' });
+  if (!message || !message.trim()) return res.status(400).json({ error: 'הודעה ריקה' });
+
+  const msg = {
+    id: uuidv4(),
+    employeeId: emp.id,
+    employeeName: emp.name,
+    message: message.trim(),
+    read: false,
+    createdAt: new Date().toISOString()
+  };
+
+  storage.update('messages', list => [...list, msg], []);
+  broadcast('new_message', msg);
+  res.status(201).json(msg);
+});
+
+app.get('/api/messages', auth.requireAdmin, (req, res) => {
+  const messages = storage.read('messages', []);
+  res.json(messages.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+});
+
+app.put('/api/messages/:id/read', auth.requireAdmin, (req, res) => {
+  storage.update('messages', list => {
+    const m = list.find(x => x.id === req.params.id);
+    if (m) m.read = true;
+    return list;
+  }, []);
+  res.json({ success: true });
+});
+
+app.delete('/api/messages/:id', auth.requireAdmin, (req, res) => {
+  storage.update('messages', list => list.filter(x => x.id !== req.params.id), []);
+  res.json({ success: true });
+});
+
+// ==================== SWAP REQUESTS (FULL FLOW) ====================
+// Employee offers a shift for swap/take - generates WA links for other employees
+app.get('/api/swap-request/:id/wa-links', auth.requireAdmin, (req, res) => {
+  const swaps = storage.read('swap-requests', []);
+  const swap = swaps.find(s => s.id === req.params.id);
+  if (!swap) return res.status(404).json({ error: 'בקשה לא נמצאה' });
+
+  const employees = storage.read('employees', []).filter(e => e.active && e.id !== swap.requesterId);
+  const baseUrl = whatsapp.getBaseUrl(req);
+
+  const links = employees.map(e => {
+    const acceptUrl = `${baseUrl}/employee/swap-respond.html?swapId=${swap.id}&token=${e.token}&action=accept`;
+    const message = `שלום ${e.name},\n${swap.requesterName} מחפשת מישהי להחליף/לקחת משמרת:\n📅 ${swap.fromDate} - ${swap.fromShift}\n${swap.notes ? '💬 ' + swap.notes : ''}\n\nאם את/ה מעוניין/ת:\n${acceptUrl}`;
+    return {
+      employeeId: e.id,
+      name: e.name,
+      phone: e.phone,
+      waLink: whatsapp.buildWhatsAppLink(e.phone, message)
+    };
+  });
+
+  res.json(links);
+});
+
+// Employee responds to swap offer
+app.post('/api/swap-request/:id/respond', (req, res) => {
+  const { token, action, offerShiftDate, offerShiftId } = req.body;
+  const emp = auth.validateEmployeeToken(token);
+  if (!emp) return res.status(404).json({ error: 'קישור לא תקין' });
+
+  const result = storage.update('swap-requests', list => {
+    const swap = list.find(s => s.id === req.params.id);
+    if (!swap) return list;
+    if (!swap.responses) swap.responses = [];
+    swap.responses.push({
+      employeeId: emp.id,
+      employeeName: emp.name,
+      action, // 'take' (take the shift) or 'swap' (swap with own shift)
+      offerShiftDate: offerShiftDate || null,
+      offerShiftId: offerShiftId || null,
+      respondedAt: new Date().toISOString()
+    });
+    return list;
+  }, []);
+
+  broadcast('swap_response', { swapId: req.params.id, employeeName: emp.name, action });
+  res.json({ success: true, message: 'התגובה נשמרה! המנהל יאשר בקרוב.' });
+});
+
+// Manager approves a specific response
+app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
+  const { responseIndex } = req.body;
+  let swap = null;
+  let acceptedEmployee = null;
+
+  storage.update('swap-requests', list => {
+    const s = list.find(r => r.id === req.params.id);
+    if (!s || !s.responses?.[responseIndex]) return list;
+
+    const response = s.responses[responseIndex];
+    s.status = 'approved';
+    s.approvedResponseIndex = responseIndex;
+    s.resolvedAt = new Date().toISOString();
+    acceptedEmployee = response;
+    swap = s;
+
+    // Update the schedule
+    const schedules = storage.read('schedules', {});
+    const sched = schedules[s.weekKey];
+    if (sched) {
+      const day = sched.days[s.fromDate];
+      if (day?.[s.fromShift]) {
+        // Remove requester, add responder
+        const idx = day[s.fromShift].indexOf(s.requesterId);
+        if (idx !== -1) day[s.fromShift][idx] = response.employeeId;
+
+        // If it's a swap (not just take), also swap the other shift
+        if (response.action === 'swap' && response.offerShiftDate && response.offerShiftId) {
+          const otherDay = sched.days[response.offerShiftDate];
+          if (otherDay?.[response.offerShiftId]) {
+            const idx2 = otherDay[response.offerShiftId].indexOf(response.employeeId);
+            if (idx2 !== -1) otherDay[response.offerShiftId][idx2] = s.requesterId;
+          }
+        }
+      }
+      storage.write('schedules', schedules);
+    }
+    return list;
+  }, []);
+
+  if (!swap) return res.status(404).json({ error: 'בקשה לא נמצאה' });
+  broadcast('swap_approved', { swap, acceptedEmployee });
+  res.json({ success: true, swap });
+});
+
+// Manager rejects swap
+app.put('/api/swap-requests/:id/reject', auth.requireAdmin, (req, res) => {
+  storage.update('swap-requests', list => {
+    const s = list.find(r => r.id === req.params.id);
+    if (s) { s.status = 'rejected'; s.resolvedAt = new Date().toISOString(); }
+    return list;
+  }, []);
+  broadcast('swap_rejected', { id: req.params.id });
+  res.json({ success: true });
+});
+
+// Get WA notification links after approval/rejection
+app.get('/api/swap-requests/:id/notify-links', auth.requireAdmin, (req, res) => {
+  const swaps = storage.read('swap-requests', []);
+  const swap = swaps.find(s => s.id === req.params.id);
+  if (!swap) return res.status(404).json({ error: 'בקשה לא נמצאה' });
+
+  const employees = storage.read('employees', []);
+  const empMap = {};
+  employees.forEach(e => { empMap[e.id] = e; });
+
+  const links = [];
+  const requester = empMap[swap.requesterId];
+  const statusText = swap.status === 'approved' ? 'אושרה ✅' : 'נדחתה ❌';
+  const approvedResp = swap.status === 'approved' && swap.responses?.[swap.approvedResponseIndex];
+
+  if (requester) {
+    let msg = `שלום ${requester.name},\nבקשת ההחלפה שלך ${statusText}`;
+    if (approvedResp) msg += `\n${approvedResp.employeeName} ${approvedResp.action === 'take' ? 'לוקחת' : 'מחליפה'} את המשמרת.`;
+    links.push({ name: requester.name, phone: requester.phone, waLink: whatsapp.buildWhatsAppLink(requester.phone, msg), role: 'מבקשת' });
+  }
+  if (approvedResp) {
+    const respEmp = empMap[approvedResp.employeeId];
+    if (respEmp) {
+      const msg = `שלום ${respEmp.name},\nההחלפה עם ${swap.requesterName} אושרה ✅ על ידי המנהל.`;
+      links.push({ name: respEmp.name, phone: respEmp.phone, waLink: whatsapp.buildWhatsAppLink(respEmp.phone, msg), role: 'מחליפה' });
+    }
+  }
+  res.json(links);
+});
+
 // ==================== WHATSAPP ====================
 app.get('/api/whatsapp/links/:weekKey', auth.requireAdmin, (req, res) => {
   res.json(whatsapp.getAvailabilityLinks(req.params.weekKey, req));
