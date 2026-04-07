@@ -91,10 +91,27 @@
     const weekSelect = document.getElementById('weekSelect');
     const current = getCurrentWeekKey();
     const next = getNextWeekKey();
-    weekSelect.innerHTML = `
-      <option value="${current}">שבוע נוכחי (${current})</option>
-      <option value="${next}" selected>שבוע הבא (${next})</option>
-    `;
+
+    async function loadWeekOptions() {
+      const statusLabels = { draft: 'טיוטה', published: 'פורסם' };
+      let options = `
+        <option value="${next}" selected>שבוע הבא (${next})</option>
+        <option value="${current}">שבוע נוכחי (${current})</option>
+      `;
+      try {
+        const history = await api('/api/schedules') || [];
+        const knownKeys = new Set([current, next]);
+        for (const h of history) {
+          if (!knownKeys.has(h.weekKey)) {
+            knownKeys.add(h.weekKey);
+            const label = statusLabels[h.status] || '';
+            options += `<option value="${h.weekKey}">${h.weekKey} ${label ? '(' + label + ')' : ''}</option>`;
+          }
+        }
+      } catch {}
+      weekSelect.innerHTML = options;
+    }
+    loadWeekOptions();
 
     async function loadDashboard() {
       const week = weekSelect.value;

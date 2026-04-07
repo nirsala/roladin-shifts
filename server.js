@@ -492,6 +492,20 @@ app.get('/api/dashboard/:weekKey', auth.requireAdmin, (req, res) => {
   });
 });
 
+// ==================== SCHEDULE HISTORY ====================
+app.get('/api/schedules', auth.requireAdmin, (req, res) => {
+  const schedules = storage.read('schedules', {});
+  const list = Object.entries(schedules)
+    .map(([weekKey, s]) => ({
+      weekKey,
+      status: s.status,
+      generatedAt: s.generatedAt,
+      publishedAt: s.publishedAt || null
+    }))
+    .sort((a, b) => b.weekKey.localeCompare(a.weekKey));
+  res.json(list);
+});
+
 // ==================== HOLIDAYS ====================
 app.get('/api/holidays', (req, res) => {
   const year = parseInt(req.query.year) || new Date().getFullYear();
