@@ -1,0 +1,14 @@
+{
+  "2026-W15": {
+    "deadline": "2026-04-08T20:00:00",
+    "mandatory": true,
+    "mandatoryDays": [],
+    "submissions": {}
+  },
+  "2026-W16": {
+    "deadline": null,
+    "mandatory": false,
+    "mandatoryDays": [],
+    "submissions": {}
+  }
+}
