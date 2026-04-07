@@ -167,15 +167,7 @@
     }
 
     function showLinksModal(title, links) {
-      let html = links.map(l => `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
-          <span style="flex:1">${l.name}</span>
-          ${l.submitted ? '<span style="color:var(--success);font-size:0.8em">✓ הגיש</span>' : ''}
-          <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
-        </div>
-      `).join('');
-
-      showModal(title, html);
+      showWaLinksModal(title, links);
     }
 
     loadStatus();

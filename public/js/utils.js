@@ -164,3 +164,55 @@ function showModal(title, bodyHtml) {
   document.body.appendChild(overlay);
   return overlay;
 }
+
+// Show WA links modal with "send to all" button
+// links = [{ name, phone?, waLink, submitted? }]
+function showWaLinksModal(title, links) {
+  // Build individual links HTML
+  const linksHtml = links.map(l => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
+      <span style="flex:1">${l.name} ${l.submitted === true ? '<span style="color:var(--success);font-size:0.8em">✓</span>' : l.submitted === false ? '' : ''}</span>
+      <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
+    </div>
+  `).join('');
+
+  // "Send to all" opens all WA links one after another
+  const allLinksJson = JSON.stringify(links.map(l => l.waLink));
+
+  const html = `
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-success" onclick='sendAllWa(${allLinksJson.replace(/'/g,"&#39;")})'>📱 שלח לכולם (${links.length})</button>
+      <button class="btn btn-outline" onclick="copyAllMessages(this)" data-links='${allLinksJson.replace(/'/g,"&#39;")}'>📋 העתק הודעות</button>
+    </div>
+    ${linksHtml}
+  `;
+
+  showModal(title, html);
+}
+
+// Open all WA links with delay between each
+function sendAllWa(links) {
+  if (!confirm('לפתוח וואטסאפ ל-' + links.length + ' עובדים? (יפתח חלון לכל אחד)')) return;
+  let i = 0;
+  function openNext() {
+    if (i >= links.length) return;
+    window.open(links[i], '_blank');
+    i++;
+    if (i < links.length) setTimeout(openNext, 1500);
+  }
+  openNext();
+}
+
+// Copy all messages text for pasting in WA group
+function copyAllMessages(btn) {
+  const links = JSON.parse(btn.dataset.links);
+  // Extract messages from wa.me links
+  const messages = links.map(l => {
+    try { return decodeURIComponent(new URL(l).searchParams.get('text')); } catch { return ''; }
+  }).filter(Boolean);
+  const combined = messages[0] || ''; // Usually same message, just take first
+  navigator.clipboard.writeText(combined).then(() => {
+    btn.textContent = '✓ הועתק!';
+    setTimeout(() => btn.textContent = '📋 העתק הודעות', 2000);
+  });
+}

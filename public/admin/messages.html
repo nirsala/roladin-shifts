@@ -152,14 +152,7 @@
     async function broadcastSwap(swapId) {
       try {
         const links = await api(`/api/swap-request/${swapId}/wa-links`);
-        let html = links.map(l => `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
-            <span style="flex:1">${l.name}</span>
-            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
-          </div>
-        `).join('');
-
-        showModal('שליחת בקשת החלפה לעובדות', html);
+        showWaLinksModal('שליחת בקשת החלפה לעובדות', links);
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -197,14 +190,7 @@
       try {
         const links = await api(`/api/swap-requests/${swapId}/notify-links`);
         if (links.length === 0) return;
-        let html = links.map(l => `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
-            <span style="flex:1"><strong>${l.name}</strong> <span style="color:var(--text-muted);font-size:0.8em">(${l.role})</span></span>
-            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
-          </div>
-        `).join('');
-
-        showModal('שליחת הודעה על תוצאת ההחלפה', html);
+        showWaLinksModal('שליחת הודעה על תוצאת ההחלפה', links);
       } catch (err) {
         showToast(err.message, 'error');
       }

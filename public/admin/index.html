@@ -173,17 +173,7 @@
       try {
         const links = await api(`/api/whatsapp/reminders/${week}`);
         if (links.length === 0) { showToast('כולן הגישו!'); return; }
-
-        let html = '<div style="padding:12px">';
-        for (const l of links) {
-          html += `<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
-            <span>${l.name}</span>
-            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
-          </div>`;
-        }
-        html += '</div>';
-
-        showModal('שליחת תזכורות', html);
+        showWaLinksModal('שליחת תזכורות', links);
       } catch (err) {
         showToast(err.message, 'error');
       }

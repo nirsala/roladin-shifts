@@ -362,14 +362,7 @@
       const week = weekSelect.value;
       try {
         const links = await api(`/api/whatsapp/schedule-links/${week}`);
-        let html = links.map(l => `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:var(--bg-input);border-radius:8px">
-            <span style="flex:1">${l.name}</span>
-            <a href="${l.waLink}" target="_blank" class="wa-link">📱 שלח</a>
-          </div>
-        `).join('');
-
-        showModal('שליחת סידור לעובדות', html);
+        showWaLinksModal('שליחת סידור לעובדות', links);
       } catch (err) {
         showToast(err.message, 'error');
       }
