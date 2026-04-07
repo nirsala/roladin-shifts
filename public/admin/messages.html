@@ -158,11 +158,7 @@
           </div>
         `).join('');
 
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay active';
-        modal.innerHTML = `<div class="modal"><h3>שליחת בקשת החלפה לעובדות</h3>${html}
-          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
-        document.body.appendChild(modal);
+        showModal('שליחת בקשת החלפה לעובדות', html);
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -207,11 +203,7 @@
           </div>
         `).join('');
 
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay active';
-        modal.innerHTML = `<div class="modal"><h3>שליחת הודעה על תוצאת ההחלפה</h3>${html}
-          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
-        document.body.appendChild(modal);
+        showModal('שליחת הודעה על תוצאת ההחלפה', html);
       } catch (err) {
         showToast(err.message, 'error');
       }

@@ -148,3 +148,19 @@ function openModal(id) {
 function closeModal(id) {
   document.getElementById(id).classList.remove('active');
 }
+
+// Create a popup modal with close X button + click-outside-to-close
+function showModal(title, bodyHtml) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `<div class="modal">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" title="סגור">✕</button>
+    <h3>${title}</h3>
+    ${bodyHtml}
+  </div>`;
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+  document.body.appendChild(overlay);
+  return overlay;
+}

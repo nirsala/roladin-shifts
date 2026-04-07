@@ -363,6 +363,30 @@ table tr:hover td {
   max-width: 500px;
   max-height: 80vh;
   overflow-y: auto;
+  position: relative;
+}
+
+.modal-close {
+  position: sticky;
+  top: 0;
+  float: left;
+  background: var(--bg-input);
+  border: none;
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.2em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal-close:hover {
+  background: var(--danger);
+  color: white;
 }
 
 .modal h3 {

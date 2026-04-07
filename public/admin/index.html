@@ -183,11 +183,7 @@
         }
         html += '</div>';
 
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay active';
-        modal.innerHTML = `<div class="modal"><h3>שליחת תזכורות</h3>${html}
-          <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()" style="margin-top:12px">סגור</button></div>`;
-        document.body.appendChild(modal);
+        showModal('שליחת תזכורות', html);
       } catch (err) {
         showToast(err.message, 'error');
       }
