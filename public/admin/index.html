@@ -92,31 +92,42 @@
     const current = getCurrentWeekKey();
     const next = getNextWeekKey();
 
+    // Set defaults immediately so dashboard works even if history API fails
+    weekSelect.innerHTML = `
+      <option value="${next}" selected>שבוע הבא (${next})</option>
+      <option value="${current}">שבוע נוכחי (${current})</option>
+    `;
+
     async function loadWeekOptions() {
       const statusLabels = { draft: 'טיוטה', published: 'פורסם' };
-      let options = `
-        <option value="${next}" selected>שבוע הבא (${next})</option>
-        <option value="${current}">שבוע נוכחי (${current})</option>
-      `;
       try {
         const history = await api('/api/schedules') || [];
         const knownKeys = new Set([current, next]);
+        let extra = '';
         for (const h of history) {
           if (!knownKeys.has(h.weekKey)) {
             knownKeys.add(h.weekKey);
             const label = statusLabels[h.status] || '';
-            options += `<option value="${h.weekKey}">${h.weekKey} ${label ? '(' + label + ')' : ''}</option>`;
+            extra += `<option value="${h.weekKey}">${h.weekKey} ${label ? '(' + label + ')' : ''}</option>`;
           }
         }
+        if (extra) {
+          weekSelect.innerHTML = `
+            <option value="${next}" selected>שבוע הבא (${next})</option>
+            <option value="${current}">שבוע נוכחי (${current})</option>
+            ${extra}
+          `;
+        }
       } catch {}
-      weekSelect.innerHTML = options;
     }
     loadWeekOptions();
 
     async function loadDashboard() {
       const week = weekSelect.value;
+      if (!week) return;
       try {
         const data = await api(`/api/dashboard/${week}`);
+        if (!data) return;
         document.getElementById('totalEmp').textContent = data.totalEmployees;
         document.getElementById('submitted').textContent = data.submittedCount;
         document.getElementById('notSubmitted').textContent = data.notSubmitted.length;
