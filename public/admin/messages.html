@@ -142,6 +142,7 @@
           <div style="font-size:0.9em">
             📅 ${s.fromDate} - משמרת <strong>${s.fromShift}</strong>
             ${s.notes ? `<br>💬 ${s.notes}` : ''}
+            ${s.managerNote ? `<br><span style="color:var(--gold)">📝 הודעת מנהל: ${s.managerNote}</span>` : ''}
           </div>
           ${responsesHtml}
           ${actionsHtml}
@@ -159,15 +160,15 @@
     }
 
     async function approveSwap(swapId, responseIndex) {
-      if (!confirm('לאשר את ההחלפה?')) return;
+      const managerNote = prompt('הודעה לעובדות (אופציונלי):') ?? '';
+      if (managerNote === null) return; // cancelled
       try {
         await api(`/api/swap-requests/${swapId}/approve`, {
           method: 'PUT',
-          body: JSON.stringify({ responseIndex })
+          body: JSON.stringify({ responseIndex, managerNote })
         });
         showToast('ההחלפה אושרה!');
         loadSwaps();
-        // Show notification links
         notifySwapResult(swapId);
       } catch (err) {
         showToast(err.message, 'error');
@@ -175,9 +176,13 @@
     }
 
     async function rejectSwap(swapId) {
-      if (!confirm('לדחות את הבקשה?')) return;
+      const managerNote = prompt('סיבת דחייה / הודעה לעובדות (אופציונלי):') ?? '';
+      if (managerNote === null) return; // cancelled
       try {
-        await api(`/api/swap-requests/${swapId}/reject`, { method: 'PUT' });
+        await api(`/api/swap-requests/${swapId}/reject`, {
+          method: 'PUT',
+          body: JSON.stringify({ managerNote })
+        });
         showToast('הבקשה נדחתה');
         loadSwaps();
         notifySwapResult(swapId);

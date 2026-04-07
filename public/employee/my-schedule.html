@@ -201,7 +201,11 @@
         const dayName = dayNames[d.getDay()] || '';
 
         let html = `
-          <p style="color:var(--text-muted);margin-bottom:12px">בחר/י את מי לשלוח בקשת החלפה למשמרת <strong>${dayName} ${d.getDate()}.${d.getMonth()+1} - ${shiftId}</strong></p>
+          <p style="color:var(--text-muted);margin-bottom:8px">בחר/י את מי לשלוח בקשת החלפה למשמרת <strong>${dayName} ${d.getDate()}.${d.getMonth()+1} - ${shiftId}</strong></p>
+          <div style="margin-bottom:8px">
+            <button class="btn btn-sm btn-outline" onclick="document.querySelectorAll('.swap-target-cb').forEach(c=>c.checked=true)">בחר הכל</button>
+            <button class="btn btn-sm btn-outline" onclick="document.querySelectorAll('.swap-target-cb').forEach(c=>c.checked=false)">בטל הכל</button>
+          </div>
           <div id="candidatesList">
             ${candidates.map(c => {
               const badges = (c.roles || ['general']).map(r => `<span style="font-size:0.75em;padding:1px 6px;border-radius:8px;background:${roleColors[r]||'#95a5a6'}22;color:${roleColors[r]||'#95a5a6'}">${roleNames[r]||r}</span>`).join(' ');

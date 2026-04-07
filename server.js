@@ -630,7 +630,7 @@ app.post('/api/swap-request/:id/respond', (req, res) => {
 
 // Manager approves a specific response
 app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
-  const { responseIndex } = req.body;
+  const { responseIndex, managerNote } = req.body;
   let swap = null;
   let acceptedEmployee = null;
 
@@ -641,6 +641,7 @@ app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
     const response = s.responses[responseIndex];
     s.status = 'approved';
     s.approvedResponseIndex = responseIndex;
+    s.managerNote = managerNote || '';
     s.resolvedAt = new Date().toISOString();
     acceptedEmployee = response;
     swap = s;
@@ -676,9 +677,10 @@ app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
 
 // Manager rejects swap
 app.put('/api/swap-requests/:id/reject', auth.requireAdmin, (req, res) => {
+  const { managerNote } = req.body || {};
   storage.update('swap-requests', list => {
     const s = list.find(r => r.id === req.params.id);
-    if (s) { s.status = 'rejected'; s.resolvedAt = new Date().toISOString(); }
+    if (s) { s.status = 'rejected'; s.managerNote = managerNote || ''; s.resolvedAt = new Date().toISOString(); }
     return list;
   }, []);
   broadcast('swap_rejected', { id: req.params.id });
@@ -700,16 +702,20 @@ app.get('/api/swap-requests/:id/notify-links', auth.requireAdmin, (req, res) => 
   const statusText = swap.status === 'approved' ? 'אושרה ✅' : 'נדחתה ❌';
   const approvedResp = swap.status === 'approved' && swap.responses?.[swap.approvedResponseIndex];
 
+  const noteText = swap.managerNote ? `\n💬 הודעת מנהל: ${swap.managerNote}` : '';
+
   if (requester) {
     let msg = `שלום ${requester.name},\nבקשת ההחלפה שלך ${statusText}`;
-    if (approvedResp) msg += `\n${approvedResp.employeeName} ${approvedResp.action === 'take' ? 'לוקחת' : 'מחליפה'} את המשמרת.`;
-    links.push({ name: requester.name, phone: requester.phone, waLink: whatsapp.buildWhatsAppLink(requester.phone, msg), role: 'מבקשת' });
+    if (approvedResp) msg += `\n${approvedResp.employeeName} ${approvedResp.action === 'take' ? 'לוקח/ת' : 'מחליפ/ה'} את המשמרת.`;
+    msg += noteText;
+    links.push({ name: requester.name, phone: requester.phone, waLink: whatsapp.buildWhatsAppLink(requester.phone, msg), role: 'מבקש/ת' });
   }
   if (approvedResp) {
     const respEmp = empMap[approvedResp.employeeId];
     if (respEmp) {
-      const msg = `שלום ${respEmp.name},\nההחלפה עם ${swap.requesterName} אושרה ✅ על ידי המנהל.`;
-      links.push({ name: respEmp.name, phone: respEmp.phone, waLink: whatsapp.buildWhatsAppLink(respEmp.phone, msg), role: 'מחליפה' });
+      let msg = `שלום ${respEmp.name},\nההחלפה עם ${swap.requesterName} אושרה ✅ על ידי המנהל.`;
+      msg += noteText;
+      links.push({ name: respEmp.name, phone: respEmp.phone, waLink: whatsapp.buildWhatsAppLink(respEmp.phone, msg), role: 'מחליפ/ה' });
     }
   }
   res.json(links);
