@@ -34,7 +34,7 @@
           <table>
             <thead>
               <tr>
-                <th>שם</th><th>טלפון</th><th>תפקיד</th><th>העדפה</th><th>מקס משמרות</th><th>קישור אישי</th><th>פעולות</th>
+                <th>שם</th><th>טלפון</th><th>תפקיד</th><th>העדפה</th><th>מקס משמרות</th><th>קישור פורטל</th><th>פעולות</th>
               </tr>
             </thead>
             <tbody id="empTable"></tbody>
@@ -113,7 +113,9 @@
           <td>${renderRoleBadges(e)}</td>
           <td><span class="pref-badge pref-${e.shiftPreference}">${prefNames[e.shiftPreference] || e.shiftPreference}</span></td>
           <td>${e.maxShiftsPerWeek || 6}</td>
-          <td><code style="font-size:0.8em;background:var(--bg-input);padding:2px 6px;border-radius:4px">${e.token}</code></td>
+          <td>
+            <button class="btn btn-sm btn-info" onclick="copyLink('${e.token}')" title="העתק קישור">📋 העתק קישור</button>
+          </td>
           <td>
             <button class="btn btn-sm btn-outline" onclick="editEmployee('${e.id}')">עריכה</button>
             <button class="btn btn-sm btn-danger" onclick="deleteEmployee('${e.id}','${e.name}')">מחיקה</button>
@@ -179,6 +181,14 @@
       await api(`/api/employees/${id}`, { method: 'DELETE' });
       showToast('נמחק');
       loadEmployees();
+    }
+
+    function getPortalUrl(empToken) {
+      return `${location.origin}/employee/?token=${empToken}`;
+    }
+
+    function copyLink(empToken) {
+      navigator.clipboard.writeText(getPortalUrl(empToken)).then(() => showToast('הקישור הועתק!'));
     }
 
     loadEmployees();

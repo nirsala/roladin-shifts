@@ -36,6 +36,15 @@
         <div id="messagesList"></div>
       </div>
 
+      <!-- Send Notification -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <h3>📢 שלח הודעה לעובדים</h3>
+        </div>
+        <textarea id="broadcastMsg" class="form-control" rows="2" placeholder="כתוב הודעה לכל העובדים..."></textarea>
+        <button class="btn btn-gold" style="margin-top:8px" onclick="broadcastNotification()">שלח לכולם</button>
+      </div>
+
       <!-- Swap Requests Section -->
       <div class="card" style="margin-top:16px">
         <div class="card-header">
@@ -207,6 +216,21 @@
       if (['new_message'].includes(msg.event)) loadMessages();
       if (['swap_requested', 'swap_response', 'swap_approved', 'swap_rejected'].includes(msg.event)) loadSwaps();
     });
+
+    async function broadcastNotification() {
+      const message = document.getElementById('broadcastMsg').value.trim();
+      if (!message) { showToast('כתוב הודעה', 'error'); return; }
+      try {
+        const result = await api('/api/notifications/broadcast', {
+          method: 'POST',
+          body: JSON.stringify({ message, type: 'general' })
+        });
+        showToast(`נשלח ל-${result.sent} עובדים!`);
+        document.getElementById('broadcastMsg').value = '';
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
   </script>
 </body>
 </html>

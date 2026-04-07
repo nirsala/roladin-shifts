@@ -143,6 +143,21 @@ app.post('/api/availability/:weekKey/open', auth.requireAdmin, (req, res) => {
     return data;
   }, {});
 
+  // Auto-notify all employees to submit availability
+  const allEmps2 = storage.read('employees', []).filter(e => e.active);
+  const baseUrl2 = whatsapp.getBaseUrl(req);
+  storage.update('notifications', list => {
+    for (const emp of allEmps2) {
+      const link = `${baseUrl2}/employee/availability.html?token=${emp.token}&week=${weekKey}`;
+      list.push({
+        id: uuidv4(), employeeId: emp.id, employeeName: emp.name,
+        message: `נפתח שבוע ${weekKey} להגשת זמינות. הגישי כאן:`,
+        link, type: 'availability', read: false, createdAt: new Date().toISOString()
+      });
+    }
+    return list;
+  }, []);
+
   broadcast('week_opened', { weekKey });
   res.json({ success: true, weekKey });
 });
@@ -297,6 +312,19 @@ app.post('/api/schedules/:weekKey/publish', auth.requireAdmin, (req, res) => {
     }
     return data;
   }, {});
+
+  // Auto-notify all employees
+  const allEmps = storage.read('employees', []).filter(e => e.active);
+  storage.update('notifications', list => {
+    for (const emp of allEmps) {
+      list.push({
+        id: uuidv4(), employeeId: emp.id, employeeName: emp.name,
+        message: `סידור העבודה לשבוע ${weekKey} פורסם! היכנס/י לקישור שלך לצפייה.`,
+        type: 'schedule', read: false, createdAt: new Date().toISOString()
+      });
+    }
+    return list;
+  }, []);
 
   broadcast('schedule_published', { weekKey });
   res.json({ success: true });
@@ -671,6 +699,23 @@ app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
   }, []);
 
   if (!swap) return res.status(404).json({ error: 'בקשה לא נמצאה' });
+
+  // Notify both employees
+  const noteText = swap.managerNote ? `\nהודעת מנהל: ${swap.managerNote}` : '';
+  storage.update('notifications', list => {
+    list.push({
+      id: uuidv4(), employeeId: swap.requesterId, employeeName: swap.requesterName,
+      message: `בקשת ההחלפה שלך אושרה ✅ ${acceptedEmployee.employeeName} מחליפ/ה את המשמרת.${noteText}`,
+      type: 'swap', read: false, createdAt: new Date().toISOString()
+    });
+    list.push({
+      id: uuidv4(), employeeId: acceptedEmployee.employeeId, employeeName: acceptedEmployee.employeeName,
+      message: `ההחלפה עם ${swap.requesterName} אושרה ✅ על ידי המנהל.${noteText}`,
+      type: 'swap', read: false, createdAt: new Date().toISOString()
+    });
+    return list;
+  }, []);
+
   broadcast('swap_approved', { swap, acceptedEmployee });
   res.json({ success: true, swap });
 });
@@ -678,11 +723,30 @@ app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
 // Manager rejects swap
 app.put('/api/swap-requests/:id/reject', auth.requireAdmin, (req, res) => {
   const { managerNote } = req.body || {};
+
+  let swap = null;
   storage.update('swap-requests', list => {
     const s = list.find(r => r.id === req.params.id);
-    if (s) { s.status = 'rejected'; s.managerNote = managerNote || ''; s.resolvedAt = new Date().toISOString(); }
+    if (s) {
+      s.status = 'rejected'; s.managerNote = managerNote || ''; s.resolvedAt = new Date().toISOString();
+      swap = s;
+    }
     return list;
   }, []);
+
+  // Notify requester
+  if (swap) {
+    const noteText = swap.managerNote ? `\nהודעת מנהל: ${swap.managerNote}` : '';
+    storage.update('notifications', list => {
+      list.push({
+        id: uuidv4(), employeeId: swap.requesterId, employeeName: swap.requesterName,
+        message: `בקשת ההחלפה שלך נדחתה ❌${noteText}`,
+        type: 'swap', read: false, createdAt: new Date().toISOString()
+      });
+      return list;
+    }, []);
+  }
+
   broadcast('swap_rejected', { id: req.params.id });
   res.json({ success: true });
 });
@@ -719,6 +783,88 @@ app.get('/api/swap-requests/:id/notify-links', auth.requireAdmin, (req, res) => 
     }
   }
   res.json(links);
+});
+
+// ==================== NOTIFICATIONS (in-app for employees) ====================
+// Get notifications for an employee
+app.get('/api/notifications/:token', (req, res) => {
+  const emp = auth.validateEmployeeToken(req.params.token);
+  if (!emp) return res.status(404).json({ error: 'קישור לא תקין' });
+  const notifications = storage.read('notifications', []);
+  const mine = notifications
+    .filter(n => n.employeeId === emp.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json(mine);
+});
+
+// Mark notification as read
+app.put('/api/notifications/:token/:id/read', (req, res) => {
+  const emp = auth.validateEmployeeToken(req.params.token);
+  if (!emp) return res.status(404).json({ error: 'קישור לא תקין' });
+  storage.update('notifications', list => {
+    const n = list.find(x => x.id === req.params.id && x.employeeId === emp.id);
+    if (n) n.read = true;
+    return list;
+  }, []);
+  res.json({ success: true });
+});
+
+// Manager sends notification to employees
+app.post('/api/notifications/send', auth.requireAdmin, (req, res) => {
+  const { employeeIds, message, type } = req.body;
+  if (!employeeIds?.length || !message) return res.status(400).json({ error: 'חובה לציין עובדים והודעה' });
+
+  const employees = storage.read('employees', []);
+  const created = [];
+  storage.update('notifications', list => {
+    for (const empId of employeeIds) {
+      const emp = employees.find(e => e.id === empId);
+      if (!emp) continue;
+      const notif = {
+        id: uuidv4(),
+        employeeId: empId,
+        employeeName: emp.name,
+        message,
+        type: type || 'general', // general, schedule, swap, reminder
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      list.push(notif);
+      created.push(notif);
+    }
+    return list;
+  }, []);
+
+  broadcast('notifications_sent', { count: created.length });
+  res.json({ success: true, sent: created.length });
+});
+
+// Manager sends notification to ALL active employees
+app.post('/api/notifications/broadcast', auth.requireAdmin, (req, res) => {
+  const { message, type } = req.body;
+  if (!message) return res.status(400).json({ error: 'חובה לציין הודעה' });
+
+  const employees = storage.read('employees', []).filter(e => e.active);
+  const created = [];
+  storage.update('notifications', list => {
+    for (const emp of employees) {
+      const notif = {
+        id: uuidv4(),
+        employeeId: emp.id,
+        employeeName: emp.name,
+        message,
+        type: type || 'general',
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      list.push(notif);
+      created.push(notif);
+    }
+    return list;
+  }, []);
+
+  broadcast('notifications_sent', { count: created.length });
+  res.json({ success: true, sent: created.length });
 });
 
 // ==================== WHATSAPP ====================

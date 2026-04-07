@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>רולדין - פורטל עובדים</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .tab-bar { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:16px; overflow-x:auto; }
+    .tab-btn { padding:10px 16px; background:none; border:none; color:var(--text-muted); cursor:pointer; font-family:inherit; font-size:0.9em; border-bottom:2px solid transparent; margin-bottom:-2px; white-space:nowrap; position:relative; }
+    .tab-btn.active { color:var(--gold); border-bottom-color:var(--gold); }
+    .tab-btn .badge { position:absolute; top:4px; left:4px; background:var(--danger); color:white; border-radius:50%; width:18px; height:18px; font-size:0.7em; display:flex; align-items:center; justify-content:center; }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+    .notif-item { padding:10px; margin-bottom:6px; border-radius:8px; border-right:3px solid var(--gold); }
+    .notif-item.unread { background:rgba(212,168,83,0.1); border-right-color:var(--gold); }
+    .notif-item.read { background:var(--bg-input); border-right-color:var(--border); }
+    .notif-type { font-size:0.75em; padding:1px 6px; border-radius:4px; }
+    .shift-card { display:flex; align-items:center; gap:12px; padding:12px; flex-wrap:wrap; }
+    .shift-date { background:var(--gold); color:var(--bg); width:50px; height:50px; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; }
+    .incoming-swap { background:rgba(212,168,83,0.1); border:1px solid var(--gold); border-radius:12px; padding:14px; margin-bottom:10px; }
+    .candidate-item { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg-input); border-radius:8px; margin-bottom:6px; }
+  </style>
+</head>
+<body>
+  <div class="employee-container" style="max-width:650px">
+    <div class="employee-header">
+      <h1>רולדין</h1>
+      <div class="emp-name" id="empName" style="font-size:1.1em"></div>
+    </div>
+
+    <div id="loading" style="text-align:center;padding:40px;color:var(--text-muted)">טוען...</div>
+    <div id="error" style="display:none;text-align:center;padding:40px;color:var(--danger)"></div>
+
+    <div id="app" style="display:none">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('schedule')">📋 הסידור שלי</button>
+        <button class="tab-btn" onclick="switchTab('notifications')" id="notifTab">🔔 הודעות</button>
+        <button class="tab-btn" onclick="switchTab('availability')">📝 זמינות</button>
+        <button class="tab-btn" onclick="switchTab('message')">💬 הודעה למנהל</button>
+      </div>
+
+      <!-- TAB: Schedule -->
+      <div class="tab-content active" id="tab-schedule">
+        <div id="incomingSection" style="display:none;margin-bottom:16px">
+          <h3 style="color:var(--warning);margin-bottom:8px">📬 בקשות החלפה</h3>
+          <div id="incomingSwaps"></div>
+        </div>
+        <h3 style="color:var(--gold);margin-bottom:8px">המשמרות שלי</h3>
+        <div id="myShifts"></div>
+        <div style="margin-top:20px">
+          <h3 style="color:var(--gold);margin-bottom:8px">סידור מלא</h3>
+          <div id="fullSchedule"></div>
+        </div>
+      </div>
+
+      <!-- TAB: Notifications -->
+      <div class="tab-content" id="tab-notifications">
+        <div id="notifList"></div>
+      </div>
+
+      <!-- TAB: Availability -->
+      <div class="tab-content" id="tab-availability">
+        <div id="availSection"></div>
+      </div>
+
+      <!-- TAB: Message -->
+      <div class="tab-content" id="tab-message">
+        <div class="card">
+          <h3 style="color:var(--gold);margin-bottom:8px">שלח/י הודעה למנהל</h3>
+          <textarea id="msgText" class="form-control" rows="3" placeholder="כתוב/י הודעה למנהל..."></textarea>
+          <button class="btn btn-gold" style="margin-top:8px;width:100%" onclick="sendMessage()">שלח הודעה</button>
+          <div id="msgSuccess" style="display:none;color:var(--success);margin-top:8px;text-align:center">✓ ההודעה נשלחה!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    const dayNames = { 0:'ראשון', 1:'שני', 2:'שלישי', 3:'רביעי', 4:'חמישי', 5:'שישי', 6:'שבת' };
+    const roleColors = { shift_manager:'#e74c3c', manager:'#8e44ad', barista:'#3498db', baker:'#e67e22', cashier:'#2ecc71', kitchen:'#f39c12', general:'#95a5a6' };
+    const roleNames = { shift_manager:'אחמ"ש', manager:'מנהל', barista:'בריסטה', baker:'אופה', cashier:'קופאי', kitchen:'מטבח', general:'כללי' };
+    const notifTypeLabels = { schedule:'📋 סידור', swap:'🔄 החלפה', availability:'📝 זמינות', reminder:'⏰ תזכורת', general:'💬 הודעה' };
+    const notifTypeColors = { schedule:'#3498db', swap:'#e74c3c', availability:'#f39c12', reminder:'#e67e22', general:'#95a5a6' };
+
+    let data = null;
+    let notifications = [];
+
+    if (!token) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = 'קישור לא תקין. בקשו מהמנהל קישור אישי.';
+    } else {
+      loadAll();
+    }
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+      if (name === 'notifications') markAllRead();
+      if (name === 'availability') loadAvailability();
+    }
+
+    async function loadAll() {
+      try {
+        const [schedRes, notifRes] = await Promise.all([
+          fetch(`/api/my-schedule/${token}`).then(r => r.ok ? r.json() : Promise.reject(r)),
+          fetch(`/api/notifications/${token}`).then(r => r.ok ? r.json() : [])
+        ]);
+        data = schedRes;
+        notifications = notifRes;
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('empName').textContent = data.employee.name;
+
+        renderSchedule();
+        renderNotifications();
+        renderIncoming();
+      } catch (err) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = 'קישור לא תקין';
+      }
+    }
+
+    // === NOTIFICATIONS ===
+    function renderNotifications() {
+      const unread = notifications.filter(n => !n.read).length;
+      const badge = document.querySelector('#notifTab .badge');
+      if (unread > 0) {
+        if (!badge) {
+          const b = document.createElement('span');
+          b.className = 'badge';
+          b.textContent = unread;
+          document.getElementById('notifTab').appendChild(b);
+        } else { badge.textContent = unread; badge.style.display = ''; }
+      } else if (badge) { badge.style.display = 'none'; }
+
+      const container = document.getElementById('notifList');
+      if (notifications.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px">אין הודעות</p>';
+        return;
+      }
+      container.innerHTML = notifications.map(n => {
+        const typeLabel = notifTypeLabels[n.type] || '💬';
+        const typeColor = notifTypeColors[n.type] || '#95a5a6';
+        const time = new Date(n.createdAt).toLocaleString('he-IL', { day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit' });
+        return `<div class="notif-item ${n.read ? 'read' : 'unread'}">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span class="notif-type" style="background:${typeColor}22;color:${typeColor}">${typeLabel}</span>
+            <span style="color:var(--text-muted);font-size:0.8em;margin-right:auto">${time}</span>
+          </div>
+          <div style="font-size:0.95em">${n.message}</div>
+          ${n.link ? `<a href="${n.link}" style="color:var(--gold);font-size:0.9em">פתח →</a>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    async function markAllRead() {
+      for (const n of notifications.filter(x => !x.read)) {
+        await fetch(`/api/notifications/${token}/${n.id}/read`, { method: 'PUT' });
+        n.read = true;
+      }
+      renderNotifications();
+    }
+
+    // === SCHEDULE ===
+    function renderSchedule() {
+      const currentWeek = data.mySchedule[0];
+      if (!currentWeek || currentWeek.shifts.length === 0) {
+        document.getElementById('myShifts').innerHTML = '<div class="card"><p style="color:var(--text-muted);padding:12px">אין משמרות משובצות</p></div>';
+      } else {
+        document.getElementById('myShifts').innerHTML = currentWeek.shifts.map(s => {
+          const d = new Date(s.date); const dn = dayNames[d.getDay()] || '';
+          return `<div class="card shift-card">
+            <div class="shift-date"><div style="font-size:0.7em">${dn}</div><div style="font-size:1.1em;font-weight:bold">${d.getDate()}.${d.getMonth()+1}</div></div>
+            <div><strong>${s.shiftId}</strong></div>
+            <button class="btn btn-sm btn-outline" style="margin-right:auto" onclick="openSwap('${currentWeek.weekKey}','${s.date}','${s.shiftId}')">🔄 החלפה</button>
+          </div>`;
+        }).join('');
+      }
+      // Full schedule
+      if (!data.fullSchedule) {
+        document.getElementById('fullSchedule').innerHTML = '<p style="color:var(--text-muted)">אין סידור מפורסם</p>';
+        return;
+      }
+      const days = Object.entries(data.fullSchedule.days).filter(([,v]) => v !== null);
+      document.getElementById('fullSchedule').innerHTML = days.map(([dateStr, shifts]) => {
+        const d = new Date(dateStr); const dn = dayNames[d.getDay()] || '';
+        let inner = '';
+        for (const [sid, emps] of Object.entries(shifts)) {
+          inner += `<div style="margin-bottom:4px"><strong style="color:var(--text-muted);font-size:0.85em">${sid}:</strong> `;
+          inner += emps.map(e => { const c = roleColors[e.role]||'#95a5a6'; return `<span style="padding:1px 5px;margin:1px;border-radius:4px;font-size:0.82em;background:${c}22;color:${c}">${e.name}</span>`; }).join('');
+          inner += '</div>';
+        }
+        return `<div class="card" style="margin-bottom:6px"><div style="color:var(--gold);font-weight:600;margin-bottom:6px">${dn} ${d.getDate()}.${d.getMonth()+1}</div>${inner}</div>`;
+      }).join('') || '<p style="color:var(--text-muted)">אין סידור</p>';
+    }
+
+    // === INCOMING SWAPS ===
+    function renderIncoming() {
+      const incoming = data.incomingSwaps || [];
+      if (incoming.length === 0) { document.getElementById('incomingSection').style.display = 'none'; return; }
+      document.getElementById('incomingSection').style.display = 'block';
+      document.getElementById('incomingSwaps').innerHTML = incoming.map(s => {
+        const d = new Date(s.fromDate); const dn = dayNames[d.getDay()] || '';
+        return `<div class="incoming-swap">
+          <strong>${s.requesterName}</strong> מבקש/ת להחליף:
+          <div style="margin:6px 0;font-size:1.05em">📅 ${dn} ${d.getDate()}.${d.getMonth()+1} - <strong>${s.fromShift}</strong></div>
+          ${s.notes ? `<div style="color:var(--text-muted);font-size:0.9em">💬 ${s.notes}</div>` : ''}
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-success" onclick="respondSwap('${s.id}','accept')">✓ מסכים/ה</button>
+            <button class="btn btn-danger" onclick="respondSwap('${s.id}','decline')">✕ לא יכול/ה</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function respondSwap(swapId, action) {
+      try {
+        const res = await fetch(`/api/swap-request/${swapId}/respond`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, action })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+        alert(action === 'accept' ? 'אישרת! ממתין לאישור מנהל.' : 'תגובתך נשלחה.');
+        loadAll();
+      } catch (err) { alert(err.message || 'שגיאה'); }
+    }
+
+    // === SWAP REQUEST ===
+    async function openSwap(weekKey, date, shiftId) {
+      try {
+        const res = await fetch(`/api/swap-candidates/${token}?weekKey=${weekKey}&date=${date}&shiftId=${shiftId}`);
+        const candidates = await res.json();
+        if (candidates.length === 0) { alert('אין עובדים מתאימים להחלפה'); return; }
+
+        const d = new Date(date); const dn = dayNames[d.getDay()] || '';
+        let html = `
+          <p style="color:var(--text-muted);margin-bottom:8px">בחר/י למי לשלוח בקשת החלפה ל-<strong>${dn} ${d.getDate()}.${d.getMonth()+1} - ${shiftId}</strong></p>
+          <div style="margin-bottom:8px">
+            <button class="btn btn-sm btn-outline" onclick="document.querySelectorAll('.swap-cb').forEach(c=>c.checked=true)">בחר הכל</button>
+            <button class="btn btn-sm btn-outline" onclick="document.querySelectorAll('.swap-cb').forEach(c=>c.checked=false)">בטל הכל</button>
+          </div>
+          ${candidates.map(c => {
+            const badges = (c.roles||['general']).map(r=>`<span style="font-size:0.72em;padding:1px 5px;border-radius:6px;background:${roleColors[r]||'#95a5a6'}22;color:${roleColors[r]||'#95a5a6'}">${roleNames[r]||r}</span>`).join(' ');
+            return `<div class="candidate-item"><label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer">
+              <input type="checkbox" class="swap-cb" value="${c.id}" checked> <strong>${c.name}</strong> ${badges}
+            </label></div>`;
+          }).join('')}
+          <textarea id="swapNote" class="form-control" rows="2" placeholder="הערה (אופציונלי)" style="margin-top:10px"></textarea>
+          <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="doSwap('${weekKey}','${date}','${shiftId}')">שלח בקשה</button>`;
+
+        // Show as modal
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay active';
+        overlay.id = 'swapModal';
+        overlay.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;justify-content:center;align-items:center';
+        overlay.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:20px;width:92%;max-width:450px;max-height:80vh;overflow-y:auto;position:relative">
+          <button style="position:sticky;top:0;float:left;background:var(--bg-input);border:none;color:var(--text);width:32px;height:32px;border-radius:50%;font-size:1.2em;cursor:pointer" onclick="this.closest('.modal-overlay').remove()">✕</button>
+          <h3 style="color:var(--gold);margin-bottom:10px">🔄 בקשת החלפה</h3>${html}</div>`;
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        document.body.appendChild(overlay);
+      } catch (err) { alert(err.message || 'שגיאה'); }
+    }
+
+    async function doSwap(weekKey, date, shiftId) {
+      const targetIds = [...document.querySelectorAll('.swap-cb:checked')].map(c => c.value);
+      if (targetIds.length === 0) { alert('בחר/י לפחות עובד/ת'); return; }
+      const notes = document.getElementById('swapNote')?.value?.trim() || '';
+      try {
+        const res = await fetch('/api/swap-request', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, weekKey, fromDate: date, fromShift: shiftId, targetEmployeeIds: targetIds, notes })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+        document.getElementById('swapModal')?.remove();
+        alert('בקשת ההחלפה נשלחה! העובדים שבחרת יראו את הבקשה בקישור שלהם.');
+        loadAll();
+      } catch (err) { alert(err.message || 'שגיאה'); }
+    }
+
+    // === AVAILABILITY ===
+    async function loadAvailability() {
+      const section = document.getElementById('availSection');
+      try {
+        // Try current and next week
+        const weeks = [getCurrentWeekKey(), getNextWeekKey()];
+        let found = false;
+        for (const week of weeks) {
+          try {
+            const res = await fetch(`/api/availability/form/${token}?week=${week}`);
+            if (!res.ok) continue;
+            const formData = await res.json();
+            found = true;
+            renderAvailForm(formData);
+            break;
+          } catch {}
+        }
+        if (!found) section.innerHTML = '<div class="card"><p style="color:var(--text-muted);padding:12px;text-align:center">אין שבוע פתוח להגשת זמינות כרגע</p></div>';
+      } catch {
+        section.innerHTML = '<div class="card"><p style="color:var(--text-muted);padding:12px">שגיאה בטעינה</p></div>';
+      }
+    }
+
+    function getCurrentWeekKey() {
+      const now = new Date();
+      const jan4 = new Date(now.getFullYear(), 0, 4);
+      const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 1)) / 86400000) + 1;
+      const weekNum = Math.ceil((dayOfYear + jan4.getDay() - 1) / 7);
+      return `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    }
+    function getNextWeekKey() {
+      const c = getCurrentWeekKey(); const [y, w] = c.split('-W').map(Number);
+      return w >= 52 ? `${y+1}-W01` : `${y}-W${String(w+1).padStart(2, '0')}`;
+    }
+
+    function renderAvailForm(formData) {
+      const section = document.getElementById('availSection');
+      let html = `<div class="card" style="margin-bottom:10px">
+        <h3 style="color:var(--gold);margin-bottom:4px">הגשת זמינות - ${formData.weekKey}</h3>
+        ${formData.deadline ? `<p style="color:var(--text-muted);font-size:0.85em">דדליין: ${new Date(formData.deadline).toLocaleDateString('he-IL')}</p>` : ''}
+        <div class="form-group" style="margin-top:8px"><label>העדפת משמרת</label>
+          <select id="availPref" class="form-control">
+            <option value="any" ${formData.employee.shiftPreference === 'any' ? 'selected' : ''}>גם וגם</option>
+            <option value="morning" ${formData.employee.shiftPreference === 'morning' ? 'selected' : ''}>בוקר בלבד</option>
+            <option value="evening" ${formData.employee.shiftPreference === 'evening' ? 'selected' : ''}>ערב בלבד</option>
+          </select>
+        </div>
+      </div>`;
+
+      html += formData.days.map(day => {
+        if (!day.shifts) return `<div class="card" style="opacity:0.5;margin-bottom:6px"><strong>${day.dayName}</strong> - סגור</div>`;
+        const existing = formData.existing?.days?.[day.date] || [];
+        const isBlackout = formData.existing?.blackoutDays?.includes(day.date);
+        const shifts = day.shifts.map(s => {
+          const checked = existing.includes(s.id) ? 'checked' : '';
+          return `<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;margin:3px 0;background:var(--bg-input);border-radius:8px;cursor:pointer">
+            <input type="checkbox" name="shift_${day.date}" value="${s.id}" data-date="${day.date}" ${checked} ${isBlackout ? 'disabled' : ''}>
+            ${s.name} <span style="color:var(--text-muted);font-size:0.85em;margin-right:auto">${s.start}-${s.end}</span>
+          </label>`;
+        }).join('');
+        return `<div class="card" style="margin-bottom:6px;${isBlackout ? 'opacity:0.5' : ''}" data-date="${day.date}">
+          <strong style="color:var(--gold)">${day.dayName} - ${day.date.slice(5)}</strong>
+          ${day.holiday ? `<span style="background:#e74c3c33;color:#e74c3c;padding:1px 6px;border-radius:6px;font-size:0.8em;margin-right:6px">${day.holiday.name}</span>` : ''}
+          ${shifts}
+          <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;margin-top:4px;background:#e74c3c15;border:1px solid #e74c3c33;border-radius:8px;cursor:pointer">
+            <input type="checkbox" class="blackout-cb" data-date="${day.date}" ${isBlackout ? 'checked' : ''} onchange="toggleBlackout(this)"> לא יכול/ה בשום אופן
+          </label>
+        </div>`;
+      }).join('');
+
+      html += `<textarea id="availNotes" class="form-control" rows="2" placeholder="הערות (אופציונלי)" style="margin-top:8px">${formData.existing?.notes || ''}</textarea>`;
+      html += `<button class="btn btn-gold btn-lg" style="width:100%;margin-top:10px" onclick="submitAvail('${formData.weekKey}')">שלח זמינות</button>`;
+      html += `<div id="availSuccess" style="display:none;color:var(--success);text-align:center;margin-top:8px">✓ הזמינות נשמרה!</div>`;
+
+      section.innerHTML = html;
+    }
+
+    function toggleBlackout(cb) {
+      const card = cb.closest('.card');
+      const shiftCbs = card.querySelectorAll('input[name^="shift_"]');
+      shiftCbs.forEach(s => { if (cb.checked) { s.checked = false; s.disabled = true; } else { s.disabled = false; } });
+      card.style.opacity = cb.checked ? '0.5' : '1';
+    }
+
+    async function submitAvail(weekKey) {
+      const days = {}; const blackoutDays = [];
+      document.querySelectorAll('.card[data-date]').forEach(card => {
+        const date = card.dataset.date;
+        const blackout = card.querySelector('.blackout-cb');
+        if (blackout?.checked) { blackoutDays.push(date); return; }
+        const checked = [...card.querySelectorAll('input[name^="shift_"]:checked')].map(c => c.value);
+        if (checked.length > 0) days[date] = checked;
+      });
+      try {
+        const res = await fetch(`/api/availability/submit/${token}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weekKey, days, blackoutDays, shiftPreference: document.getElementById('availPref').value, notes: document.getElementById('availNotes')?.value?.trim() || '' })
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        document.getElementById('availSuccess').style.display = 'block';
+        setTimeout(() => { const el = document.getElementById('availSuccess'); if (el) el.style.display = 'none'; }, 3000);
+      } catch (err) { alert(err.message || 'שגיאה'); }
+    }
+
+    // === MESSAGE ===
+    async function sendMessage() {
+      const message = document.getElementById('msgText').value.trim();
+      if (!message) return alert('הכנס הודעה');
+      try {
+        const res = await fetch('/api/messages', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, message })
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        document.getElementById('msgText').value = '';
+        document.getElementById('msgSuccess').style.display = 'block';
+        setTimeout(() => document.getElementById('msgSuccess').style.display = 'none', 3000);
+      } catch (err) { alert(err.message || 'שגיאה'); }
+    }
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => { if (token) loadAll(); }, 30000);
+  </script>
+</body>
+</html>
