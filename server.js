@@ -528,6 +528,36 @@ app.put('/api/settings', auth.requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// ==================== EXPORT / IMPORT ====================
+app.get('/api/backup/export', auth.requireAdmin, (req, res) => {
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    employees: storage.read('employees', []),
+    shiftsConfig: storage.read('shifts-config', {}),
+    settings: (() => { const s = storage.read('settings'); return s ? { ...s, adminPasswordHash: undefined } : {}; })(),
+    availability: storage.read('availability', {}),
+    schedules: storage.read('schedules', {}),
+    swapRequests: storage.read('swap-requests', [])
+  };
+  res.setHeader('Content-Disposition', `attachment; filename=roladin-backup-${new Date().toISOString().slice(0,10)}.json`);
+  res.json(backup);
+});
+
+app.post('/api/backup/import', auth.requireAdmin, (req, res) => {
+  const backup = req.body;
+  if (!backup || !backup.employees) {
+    return res.status(400).json({ error: 'קובץ גיבוי לא תקין' });
+  }
+  let count = 0;
+  if (backup.employees) { storage.write('employees', backup.employees); count++; }
+  if (backup.shiftsConfig) { storage.write('shifts-config', backup.shiftsConfig); count++; }
+  if (backup.availability) { storage.write('availability', backup.availability); count++; }
+  if (backup.schedules) { storage.write('schedules', backup.schedules); count++; }
+  if (backup.swapRequests) { storage.write('swap-requests', backup.swapRequests); count++; }
+  broadcast('data_imported', { count });
+  res.json({ success: true, filesRestored: count });
+});
+
 // ==================== PRINT ====================
 app.get('/api/schedules/:weekKey/print', (req, res) => {
   const { weekKey } = req.params;

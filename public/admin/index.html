@@ -67,6 +67,20 @@
           </table>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>גיבוי ושחזור</h3>
+        </div>
+        <p style="color:var(--text-muted);font-size:0.85em;margin-bottom:12px">שמור את כל הנתונים (עובדים, משמרות, סידורים) כקובץ גיבוי. שחזר בכל עת.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-gold" onclick="exportBackup()">📥 הורד גיבוי</button>
+          <label class="btn btn-info" style="cursor:pointer">
+            📤 שחזר מגיבוי
+            <input type="file" accept=".json" style="display:none" onchange="importBackup(this)">
+          </label>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -150,9 +164,48 @@
       }
     }
 
+    async function exportBackup() {
+      try {
+        const res = await fetch('/api/backup/export', {
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        });
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `roladin-backup-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('גיבוי הורד בהצלחה');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function importBackup(input) {
+      const file = input.files[0];
+      if (!file) return;
+      if (!confirm('שחזור גיבוי ידרוס את כל הנתונים הנוכחיים. להמשיך?')) { input.value = ''; return; }
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        await api('/api/backup/import', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+        showToast('שוחזר בהצלחה!');
+        input.value = '';
+        loadDashboard();
+      } catch (err) {
+        showToast('שגיאה בשחזור: ' + err.message, 'error');
+        input.value = '';
+      }
+    }
+
     loadDashboard();
     connectWS((msg) => {
-      if (['availability_submitted', 'schedule_generated', 'schedule_published'].includes(msg.event)) {
+      if (['availability_submitted', 'schedule_generated', 'schedule_published', 'data_imported'].includes(msg.event)) {
         loadDashboard();
       }
     });
