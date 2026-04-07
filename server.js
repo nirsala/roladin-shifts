@@ -629,7 +629,9 @@ tr:nth-child(even){background:#f9f9f9}
 });
 
 // --- Start server ---
+const githubSync = require('./lib/github-sync');
 server.listen(config.PORT, () => {
   console.log(`🟢 Roladin Shifts running on port ${config.PORT}`);
   console.log(`📋 Admin: http://localhost:${config.PORT}/admin/`);
+  console.log(`💾 GitHub sync: ${githubSync.isEnabled() ? '✓ enabled' : '✗ disabled (set GITHUB_TOKEN)'}`);
 });
