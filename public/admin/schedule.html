@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>סידור עבודה - רולדין</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .emp-row { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:8px; margin-bottom:4px; }
+    .emp-row.submitted { background: var(--bg-input); }
+    .emp-row.not-submitted { background: #e74c3c15; border: 1px solid #e74c3c33; }
+    .emp-status { font-size:0.8em; min-width:80px; }
+    .cell-editable { cursor:pointer; position:relative; min-height:50px; }
+    .cell-editable:hover { outline: 2px solid var(--gold); outline-offset:-2px; border-radius:4px; }
+    .emp-tag-remove { cursor:pointer; margin-right:2px; opacity:0.6; }
+    .emp-tag-remove:hover { opacity:1; color:var(--danger); }
+    .add-emp-btn { display:inline-block; padding:2px 8px; margin:2px; border-radius:4px; background:var(--bg-input); border:1px dashed var(--border); cursor:pointer; font-size:0.8em; color:var(--text-muted); }
+    .add-emp-btn:hover { border-color:var(--gold); color:var(--gold); }
+    .dropdown-menu { position:absolute; top:100%; right:0; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:4px; z-index:50; max-height:200px; overflow-y:auto; min-width:140px; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+    .dropdown-item { padding:6px 10px; cursor:pointer; border-radius:4px; font-size:0.85em; white-space:nowrap; }
+    .dropdown-item:hover { background:var(--bg-input); color:var(--gold); }
+  </style>
 </head>
 <body>
   <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
@@ -26,32 +41,31 @@
       <div class="page-header">
         <h2>סידור עבודה</h2>
         <div style="display:flex;gap:8px;align-items:center">
-          <select id="weekSelect" class="form-control" style="width:auto" onchange="loadSchedule()"></select>
+          <select id="weekSelect" class="form-control" style="width:auto" onchange="loadPage()"></select>
         </div>
       </div>
 
-      <!-- Exclude employees card - always visible -->
-      <div class="card" id="excludeCard">
+      <!-- Employee status + exclude card -->
+      <div class="card" id="empStatusCard">
         <div class="card-header">
-          <h3>לא לכלול בסידור</h3>
-          <button class="btn btn-sm btn-outline" onclick="toggleExcludeAll()">סמן/בטל הכל</button>
+          <h3>סטטוס עובדות</h3>
         </div>
-        <p style="color:var(--text-muted);font-size:0.85em;margin-bottom:8px">סמן עובדות שלא ישובצו בסידור השבוע</p>
-        <div id="excludeList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div id="empStatusList"></div>
       </div>
 
       <div id="noSchedule" style="display:none">
         <div class="card" style="text-align:center;padding:40px">
           <h3 style="margin-bottom:16px">לא נוצר סידור לשבוע זה</h3>
-          <p style="color:var(--text-muted);margin-bottom:16px">ניתן ליצור סידור גם אם לא כולן הגישו זמינות</p>
-          <button class="btn btn-gold btn-lg" onclick="generateSchedule()">יצירת סידור אוטומטי</button>
+          <p style="color:var(--text-muted);margin-bottom:16px">מי שלא הגישה זמינות תשובץ לפי ההעדפות מהכרטיס שלה</p>
+          <button class="btn btn-gold btn-lg" onclick="doGenerate()">יצירת סידור אוטומטי</button>
         </div>
       </div>
 
       <div id="hasSchedule" style="display:none">
         <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
           <span id="scheduleStatus" style="font-weight:bold"></span>
-          <button class="btn btn-gold" onclick="generateSchedule()">יצירה מחדש</button>
+          <button class="btn btn-gold" onclick="doGenerate()">יצירה מחדש</button>
+          <button class="btn btn-warning" id="saveBtn" onclick="saveManualEdits()" style="display:none">💾 שמור שינויים</button>
           <button class="btn btn-success" id="publishBtn" onclick="publishSchedule()">פרסם סידור</button>
           <button class="btn btn-info" onclick="sendScheduleLinks()">📱 שלח לעובדות</button>
           <a id="printLink" href="#" target="_blank" class="btn btn-outline">🖨️ הדפסה</a>
@@ -85,34 +99,74 @@
 
     let scheduleData = null;
     let employees = [];
+    let availabilityStatus = {};
+    let hasUnsavedEdits = false;
+    let rawScheduleDays = null; // raw schedule with IDs for manual editing
 
-    async function loadEmployeesForExclude() {
+    async function loadPage() {
+      const week = weekSelect.value;
       employees = await api('/api/employees') || [];
-      const container = document.getElementById('excludeList');
-      container.innerHTML = employees.filter(e => e.active).map(e => `
-        <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg-input);border-radius:8px;cursor:pointer;font-size:0.85em">
-          <input type="checkbox" class="exclude-cb" value="${e.id}">
-          <span>${e.name}</span>
-        </label>
-      `).join('');
+
+      // Load availability status
+      try {
+        availabilityStatus = await api(`/api/availability/${week}/status`);
+      } catch {
+        availabilityStatus = { submitted: [], notSubmitted: employees.filter(e => e.active).map(e => ({ id: e.id, name: e.name })) };
+      }
+
+      renderEmpStatus();
+      await loadSchedule();
+    }
+
+    function renderEmpStatus() {
+      const container = document.getElementById('empStatusList');
+      const submittedIds = new Set((availabilityStatus.submitted || []).map(e => e.id));
+      const active = employees.filter(e => e.active);
+
+      container.innerHTML = active.map(e => {
+        const didSubmit = submittedIds.has(e.id);
+        return `
+          <div class="emp-row ${didSubmit ? 'submitted' : 'not-submitted'}">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" class="exclude-cb" value="${e.id}">
+              <span style="font-size:0.85em;color:var(--danger)">לא לכלול</span>
+            </label>
+            <strong style="flex:1">${e.name}</strong>
+            <span class="role-badge role-${e.role}">${roleNames[e.role] || e.role}</span>
+            <span class="pref-badge pref-${e.shiftPreference || 'any'}">${prefNames[e.shiftPreference] || 'גם וגם'}</span>
+            <span class="emp-status">${didSubmit
+              ? '<span style="color:var(--success)">✓ הגישה</span>'
+              : '<span style="color:var(--warning)">⚠ לפי העדפה</span>'
+            }</span>
+          </div>`;
+      }).join('');
     }
 
     function getExcluded() {
       return [...document.querySelectorAll('.exclude-cb:checked')].map(cb => cb.value);
     }
 
-    function toggleExcludeAll() {
-      const cbs = document.querySelectorAll('.exclude-cb');
-      const allChecked = [...cbs].every(cb => cb.checked);
-      cbs.forEach(cb => cb.checked = !allChecked);
-    }
-
     async function loadSchedule() {
       const week = weekSelect.value;
       document.getElementById('printLink').href = `/api/schedules/${week}/print`;
-      await loadEmployeesForExclude();
+      hasUnsavedEdits = false;
+      document.getElementById('saveBtn').style.display = 'none';
+
       try {
         scheduleData = await api(`/api/schedules/${week}`);
+        // Also fetch raw schedule (with IDs) for editing
+        rawScheduleDays = {};
+        const rawData = await api(`/api/schedules/${week}`);
+        // rawData already has enriched names, but we need the raw IDs
+        // Let's store a mapping
+        for (const [dateStr, shifts] of Object.entries(rawData.days || {})) {
+          if (!shifts) { rawScheduleDays[dateStr] = null; continue; }
+          rawScheduleDays[dateStr] = {};
+          for (const [shiftId, emps] of Object.entries(shifts)) {
+            rawScheduleDays[dateStr][shiftId] = emps.map(e => e.id);
+          }
+        }
+
         document.getElementById('noSchedule').style.display = 'none';
         document.getElementById('hasSchedule').style.display = 'block';
 
@@ -120,7 +174,6 @@
         document.getElementById('scheduleStatus').innerHTML = statusText;
         document.getElementById('publishBtn').style.display = scheduleData.status === 'published' ? 'none' : '';
 
-        // Warnings
         if (scheduleData.warnings?.length > 0) {
           document.getElementById('warnings').style.display = 'block';
           document.getElementById('warningsList').innerHTML = scheduleData.warnings
@@ -140,29 +193,32 @@
       const days = Object.entries(scheduleData.days || {}).filter(([, v]) => v !== null);
       if (days.length === 0) { document.getElementById('scheduleGrid').innerHTML = '<p>אין ימים בסידור</p>'; return; }
 
-      // Collect all shift IDs
       const allShifts = new Set();
       days.forEach(([, shifts]) => Object.keys(shifts).forEach(s => allShifts.add(s)));
       const shiftIds = [...allShifts];
 
       let html = '<div class="schedule-grid" style="grid-template-columns: 100px repeat(' + days.length + ', 1fr)">';
 
-      // Header row
       html += '<div class="cell cell-header"></div>';
       days.forEach(([dateStr]) => {
         html += `<div class="cell cell-header">${formatDate(dateStr)}</div>`;
       });
 
-      // Shift rows
       shiftIds.forEach(shiftId => {
         html += `<div class="cell cell-shift">${shiftId}</div>`;
         days.forEach(([dateStr, shifts]) => {
           const emps = shifts[shiftId] || [];
           const tags = emps.map(e => {
             const color = roleColors[e.role] || '#95a5a6';
-            return `<span class="emp-tag" style="background:${color}22;color:${color}">${e.name}</span>`;
+            return `<span class="emp-tag" style="background:${color}22;color:${color}">
+              <span class="emp-tag-remove" onclick="removeFromShift('${dateStr}','${shiftId}','${e.id}')" title="הסר">✕</span>
+              ${e.name}
+            </span>`;
           }).join('');
-          html += `<div class="cell">${tags || '<span style="color:var(--text-muted)">-</span>'}</div>`;
+          html += `<div class="cell cell-editable" data-date="${dateStr}" data-shift="${shiftId}">
+            ${tags}
+            <span class="add-emp-btn" onclick="showAddMenu(this,'${dateStr}','${shiftId}')">+ הוסף</span>
+          </div>`;
         });
       });
 
@@ -170,9 +226,87 @@
       document.getElementById('scheduleGrid').innerHTML = html;
     }
 
-    async function generateSchedule() {
+    function markUnsaved() {
+      hasUnsavedEdits = true;
+      document.getElementById('saveBtn').style.display = '';
+    }
+
+    function removeFromShift(dateStr, shiftId, empId) {
+      if (!rawScheduleDays[dateStr]?.[shiftId]) return;
+      rawScheduleDays[dateStr][shiftId] = rawScheduleDays[dateStr][shiftId].filter(id => id !== empId);
+
+      // Update display
+      const emps = scheduleData.days[dateStr][shiftId];
+      scheduleData.days[dateStr][shiftId] = emps.filter(e => e.id !== empId);
+      renderGrid();
+      markUnsaved();
+    }
+
+    function showAddMenu(btn, dateStr, shiftId) {
+      // Close any open dropdown
+      document.querySelectorAll('.dropdown-menu').forEach(d => d.remove());
+
+      const currentIds = rawScheduleDays[dateStr]?.[shiftId] || [];
+      const available = employees.filter(e => e.active && !currentIds.includes(e.id));
+
+      if (available.length === 0) { showToast('כל העובדות כבר משובצות', 'error'); return; }
+
+      const menu = document.createElement('div');
+      menu.className = 'dropdown-menu';
+      menu.innerHTML = available.map(e => {
+        const color = roleColors[e.role] || '#95a5a6';
+        return `<div class="dropdown-item" onclick="addToShift('${dateStr}','${shiftId}','${e.id}')">
+          <span style="color:${color}">●</span> ${e.name}
+        </div>`;
+      }).join('');
+
+      const cell = btn.closest('.cell-editable');
+      cell.style.position = 'relative';
+      cell.appendChild(menu);
+
+      // Close on click outside
+      setTimeout(() => {
+        document.addEventListener('click', function closeMenu(ev) {
+          if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); }
+        });
+      }, 10);
+    }
+
+    function addToShift(dateStr, shiftId, empId) {
+      if (!rawScheduleDays[dateStr]) rawScheduleDays[dateStr] = {};
+      if (!rawScheduleDays[dateStr][shiftId]) rawScheduleDays[dateStr][shiftId] = [];
+      rawScheduleDays[dateStr][shiftId].push(empId);
+
+      const emp = employees.find(e => e.id === empId);
+      if (!scheduleData.days[dateStr]) scheduleData.days[dateStr] = {};
+      if (!scheduleData.days[dateStr][shiftId]) scheduleData.days[dateStr][shiftId] = [];
+      scheduleData.days[dateStr][shiftId].push({ id: empId, name: emp.name, role: emp.role });
+
+      document.querySelectorAll('.dropdown-menu').forEach(d => d.remove());
+      renderGrid();
+      markUnsaved();
+    }
+
+    async function saveManualEdits() {
+      const week = weekSelect.value;
+      try {
+        await api(`/api/schedules/${week}`, {
+          method: 'PUT',
+          body: JSON.stringify({ days: rawScheduleDays, editNote: 'עריכה ידנית' })
+        });
+        showToast('שינויים נשמרו!');
+        hasUnsavedEdits = false;
+        document.getElementById('saveBtn').style.display = 'none';
+        loadSchedule();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function doGenerate() {
       const week = weekSelect.value;
       if (scheduleData?.status === 'published' && !confirm('הסידור כבר פורסם. ליצור מחדש?')) return;
+      if (hasUnsavedEdits && !confirm('יש שינויים שלא נשמרו. ליצור מחדש?')) return;
       const excluded = getExcluded();
       try {
         await api(`/api/schedules/${week}/generate`, {
@@ -188,6 +322,7 @@
 
     async function publishSchedule() {
       const week = weekSelect.value;
+      if (hasUnsavedEdits) { showToast('שמור שינויים קודם!', 'error'); return; }
       if (!confirm('לפרסם את הסידור? העובדות יוכלו לראות אותו.')) return;
       try {
         await api(`/api/schedules/${week}/publish`, { method: 'POST' });
@@ -219,9 +354,12 @@
       }
     }
 
-    loadSchedule();
+    // Warn before leaving with unsaved edits
+    window.onbeforeunload = () => hasUnsavedEdits ? 'יש שינויים שלא נשמרו' : null;
+
+    loadPage();
     connectWS(msg => {
-      if (['schedule_generated', 'schedule_updated', 'schedule_published'].includes(msg.event)) loadSchedule();
+      if (['schedule_generated', 'schedule_updated', 'schedule_published', 'availability_submitted'].includes(msg.event)) loadPage();
     });
   </script>
 </body>
