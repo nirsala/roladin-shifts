@@ -29,7 +29,7 @@ storage.read('shifts-config', {
     { id: 'morning', name: 'בוקר', start: '07:00', end: '15:00', requiredEmployees: 4 },
     { id: 'evening', name: 'ערב', start: '15:00', end: '23:00', requiredEmployees: 3 }
   ],
-  dayOverrides: {},
+  dayOverrides: { "6": null },
   dateOverrides: {},
   roleRequirements: {}
 });
