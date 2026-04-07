@@ -57,14 +57,8 @@
         <input type="tel" id="empPhone" class="form-control" placeholder="050-1234567" dir="ltr">
       </div>
       <div class="form-group">
-        <label>תפקיד</label>
-        <select id="empRole" class="form-control">
-          <option value="general">כללי</option>
-          <option value="shift_manager">אחמ"ש</option>
-          <option value="barista">בריסטה</option>
-          <option value="cashier">קופאית</option>
-          <option value="kitchen">מטבח</option>
-        </select>
+        <label>תפקידים (ניתן לסמן כמה)</label>
+        <div id="rolesContainer" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
       </div>
       <div class="form-group">
         <label>העדפת משמרת</label>
@@ -91,6 +85,23 @@
 
     let employees = [];
 
+    function renderRolesCheckboxes(selectedRoles = ['general']) {
+      const container = document.getElementById('rolesContainer');
+      container.innerHTML = allRoleKeys.map(r => {
+        const checked = selectedRoles.includes(r) ? 'checked' : '';
+        const color = roleColors[r] || '#95a5a6';
+        return `<label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:${color}15;border:1px solid ${color}44;border-radius:8px;cursor:pointer;font-size:0.85em">
+          <input type="checkbox" class="role-cb" value="${r}" ${checked} style="accent-color:${color}">
+          <span style="color:${color}">${roleNames[r]}</span>
+        </label>`;
+      }).join('');
+    }
+
+    function getSelectedRoles() {
+      const checked = [...document.querySelectorAll('.role-cb:checked')].map(cb => cb.value);
+      return checked.length > 0 ? checked : ['general'];
+    }
+
     async function loadEmployees() {
       employees = await api('/api/employees') || [];
       const tbody = document.getElementById('empTable');
@@ -98,7 +109,7 @@
         <tr>
           <td><strong>${e.name}</strong></td>
           <td dir="ltr" style="text-align:right">${e.phone}</td>
-          <td><span class="role-badge role-${e.role}">${roleNames[e.role] || e.role}</span></td>
+          <td>${renderRoleBadges(e)}</td>
           <td><span class="pref-badge pref-${e.shiftPreference}">${prefNames[e.shiftPreference] || e.shiftPreference}</span></td>
           <td>${e.maxShiftsPerWeek || 6}</td>
           <td><code style="font-size:0.8em;background:var(--bg-input);padding:2px 6px;border-radius:4px">${e.token}</code></td>
@@ -111,11 +122,11 @@
     }
 
     function openAddModal() {
-      document.getElementById('modalTitle').textContent = 'הוספת עובדת';
+      document.getElementById('modalTitle').textContent = 'הוספת עובד/ת';
       document.getElementById('empId').value = '';
       document.getElementById('empName').value = '';
       document.getElementById('empPhone').value = '';
-      document.getElementById('empRole').value = 'general';
+      renderRolesCheckboxes(['general']);
       document.getElementById('empPref').value = 'any';
       document.getElementById('empMax').value = '6';
       openModal('empModal');
@@ -124,11 +135,11 @@
     function editEmployee(id) {
       const e = employees.find(x => x.id === id);
       if (!e) return;
-      document.getElementById('modalTitle').textContent = 'עריכת עובדת';
+      document.getElementById('modalTitle').textContent = 'עריכת עובד/ת';
       document.getElementById('empId').value = e.id;
       document.getElementById('empName').value = e.name;
       document.getElementById('empPhone').value = e.phone;
-      document.getElementById('empRole').value = e.role;
+      renderRolesCheckboxes(getEmployeeRoles(e));
       document.getElementById('empPref').value = e.shiftPreference || 'any';
       document.getElementById('empMax').value = e.maxShiftsPerWeek || 6;
       openModal('empModal');
@@ -136,10 +147,12 @@
 
     async function saveEmployee() {
       const id = document.getElementById('empId').value;
+      const roles = getSelectedRoles();
       const data = {
         name: document.getElementById('empName').value.trim(),
         phone: document.getElementById('empPhone').value.trim(),
-        role: document.getElementById('empRole').value,
+        roles: roles,
+        role: roles[0],
         shiftPreference: document.getElementById('empPref').value,
         maxShiftsPerWeek: parseInt(document.getElementById('empMax').value)
       };

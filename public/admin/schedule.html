@@ -132,7 +132,7 @@
               <span style="font-size:0.85em;color:var(--danger)">לא לכלול</span>
             </label>
             <strong style="flex:1">${e.name}</strong>
-            <span class="role-badge role-${e.role}">${roleNames[e.role] || e.role}</span>
+            ${renderRoleBadges(e)}
             <span class="pref-badge pref-${e.shiftPreference || 'any'}">${prefNames[e.shiftPreference] || 'גם וגם'}</span>
             <span class="emp-status">${didSubmit
               ? '<span style="color:var(--success)">✓ הגישה</span>'

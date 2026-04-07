@@ -263,7 +263,9 @@ table tr:hover td {
 }
 
 .role-shift_manager { background: #e74c3c33; color: #e74c3c; }
+.role-manager { background: #8e44ad33; color: #8e44ad; }
 .role-barista { background: #3498db33; color: #3498db; }
+.role-baker { background: #e67e2233; color: #e67e22; }
 .role-cashier { background: #2ecc7133; color: #2ecc71; }
 .role-kitchen { background: #f39c1233; color: #f39c12; }
 .role-general { background: #95a5a633; color: #95a5a6; }

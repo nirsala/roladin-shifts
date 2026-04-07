@@ -260,7 +260,8 @@ app.get('/api/schedules/:weekKey', auth.requireAdmin, (req, res) => {
       shifts[shiftId] = empIds.map(id => ({
         id,
         name: empMap[id]?.name || 'לא ידוע',
-        role: empMap[id]?.role || 'general'
+        role: empMap[id]?.role || 'general',
+        roles: empMap[id]?.roles || [empMap[id]?.role || 'general']
       }));
     }
   }
@@ -340,7 +341,7 @@ app.get('/api/my-schedule/:token', (req, res) => {
       fullSchedule.days[dateStr] = {};
       for (const [shiftId, empIds] of Object.entries(shifts)) {
         fullSchedule.days[dateStr][shiftId] = empIds.map(id => ({
-          name: empMap[id]?.name || '?', role: empMap[id]?.role || 'general'
+          name: empMap[id]?.name || '?', role: empMap[id]?.role || 'general', roles: empMap[id]?.roles || [empMap[id]?.role || 'general']
         }));
       }
     }
@@ -573,8 +574,8 @@ app.get('/api/schedules/:weekKey/print', (req, res) => {
   const dates = getWeekDates(weekKey);
 
   const roleColors = {
-    shift_manager: '#e74c3c', barista: '#3498db', cashier: '#2ecc71',
-    kitchen: '#f39c12', general: '#95a5a6'
+    shift_manager: '#e74c3c', manager: '#8e44ad', barista: '#3498db',
+    baker: '#e67e22', cashier: '#2ecc71', kitchen: '#f39c12', general: '#95a5a6'
   };
 
   let rows = '';
@@ -586,7 +587,8 @@ app.get('/api/schedules/:weekKey/print', (req, res) => {
     for (const [shiftId, empIds] of Object.entries(dayShifts)) {
       const names = empIds.map(id => {
         const e = empMap[id];
-        const color = roleColors[e?.role] || '#95a5a6';
+        const primaryRole = (e?.roles || [e?.role])[0] || 'general';
+        const color = roleColors[primaryRole] || '#95a5a6';
         return `<span style="color:${color};font-weight:bold">${e?.name || '?'}</span>`;
       }).join(', ');
 

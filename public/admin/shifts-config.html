@@ -168,7 +168,7 @@
       const container = document.getElementById('roleReqs');
       const shifts = configData.defaultShifts || [];
       const reqs = configData.roleRequirements || {};
-      const roles = ['shift_manager', 'barista', 'cashier', 'kitchen'];
+      const roles = ['shift_manager', 'manager', 'barista', 'baker', 'cashier', 'kitchen'];
 
       container.innerHTML = shifts.map(s => {
         const shiftReqs = reqs[s.id] || {};

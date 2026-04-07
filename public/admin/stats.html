@@ -63,7 +63,8 @@
 
       document.getElementById('fairnessChart').innerHTML = data.map(e => {
         const pct = (e.stats.totalShifts / maxShifts * 100).toFixed(0);
-        const color = roleColors[e.role] || '#95a5a6';
+        const primaryRole = getEmployeeRoles(e)[0];
+        const color = roleColors[primaryRole] || '#95a5a6';
         return `<div style="text-align:center;min-width:60px">
           <div style="height:100px;display:flex;align-items:flex-end;justify-content:center">
             <div style="width:30px;height:${pct}%;background:${color};border-radius:4px 4px 0 0;min-height:4px"></div>
@@ -76,7 +77,7 @@
       document.getElementById('statsTable').innerHTML = data.map(e => `
         <tr>
           <td><strong>${e.name}</strong></td>
-          <td><span class="role-badge role-${e.role}">${roleNames[e.role]}</span></td>
+          <td>${renderRoleBadges(e)}</td>
           <td>${e.stats.totalShifts}</td>
           <td>${e.stats.morningShifts}</td>
           <td>${e.stats.eveningShifts}</td>

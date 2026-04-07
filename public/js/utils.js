@@ -83,11 +83,15 @@ function formatDateTime(isoStr) {
 // Role names in Hebrew
 const roleNames = {
   shift_manager: 'אחמ"ש',
+  manager: 'מנהל',
   barista: 'בריסטה',
-  cashier: 'קופאית',
+  baker: 'אופה',
+  cashier: 'קופאי',
   kitchen: 'מטבח',
   general: 'כללי'
 };
+
+const allRoleKeys = ['shift_manager', 'manager', 'barista', 'baker', 'cashier', 'kitchen', 'general'];
 
 const prefNames = {
   morning: 'בוקר בלבד',
@@ -97,11 +101,33 @@ const prefNames = {
 
 const roleColors = {
   shift_manager: '#e74c3c',
+  manager: '#8e44ad',
   barista: '#3498db',
+  baker: '#e67e22',
   cashier: '#2ecc71',
   kitchen: '#f39c12',
   general: '#95a5a6'
 };
+
+// Helper: get roles array from employee (backward compatible with old single-role)
+function getEmployeeRoles(emp) {
+  if (emp.roles && Array.isArray(emp.roles)) return emp.roles;
+  if (emp.role && emp.role !== 'general') return [emp.role];
+  return ['general'];
+}
+
+// Helper: render role badges HTML
+function renderRoleBadges(emp) {
+  const roles = getEmployeeRoles(emp);
+  return roles.map(r =>
+    `<span class="role-badge role-${r}">${roleNames[r] || r}</span>`
+  ).join(' ');
+}
+
+// Helper: check if employee has a specific role
+function hasRole(emp, role) {
+  return getEmployeeRoles(emp).includes(role);
+}
 
 // WebSocket
 function connectWS(onMessage) {
