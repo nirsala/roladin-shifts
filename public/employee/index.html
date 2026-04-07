@@ -245,10 +245,21 @@
         const d = new Date(dateStr); const dn = dayNames[d.getDay()] || '';
         let inner = '';
         for (const [sid, shiftData] of Object.entries(shifts)) {
-          // Support both old format (array) and new format (object with employees)
-          const emps = Array.isArray(shiftData) ? shiftData : (shiftData.employees || []);
-          const shiftName = shiftData.shiftName || sid;
-          const hours = shiftData.start && shiftData.end ? `${shiftData.start}-${shiftData.end}` : '';
+          if (!shiftData) continue;
+          let emps, shiftName, hours;
+          if (Array.isArray(shiftData)) {
+            // Old format: shiftData is array of {name, role}
+            emps = shiftData;
+            shiftName = sid;
+            hours = '';
+          } else if (typeof shiftData === 'object') {
+            // New format: {shiftName, start, end, employees:[]}
+            emps = shiftData.employees || [];
+            shiftName = shiftData.shiftName || sid;
+            hours = shiftData.start && shiftData.end ? `${shiftData.start}-${shiftData.end}` : '';
+          } else {
+            continue;
+          }
           inner += `<div style="margin-bottom:6px"><strong style="color:var(--text-muted);font-size:0.85em">${shiftName}${hours ? ` (${hours})` : ''}:</strong> `;
           inner += emps.map(e => { const c = roleColors[e.role]||'#95a5a6'; return `<span style="padding:1px 5px;margin:1px;border-radius:4px;font-size:0.82em;background:${c}22;color:${c}">${e.name}</span>`; }).join('');
           inner += '</div>';
