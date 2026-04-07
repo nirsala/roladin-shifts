@@ -223,9 +223,14 @@
       } else {
         document.getElementById('myShifts').innerHTML = currentWeek.shifts.map(s => {
           const d = new Date(s.date); const dn = dayNames[d.getDay()] || '';
+          const hours = s.start && s.end ? `${s.start} - ${s.end}` : '';
+          const name = s.shiftName || s.shiftId;
           return `<div class="card shift-card">
             <div class="shift-date"><div style="font-size:0.7em">${dn}</div><div style="font-size:1.1em;font-weight:bold">${d.getDate()}.${d.getMonth()+1}</div></div>
-            <div><strong>${s.shiftId}</strong></div>
+            <div>
+              <strong>${name}</strong>
+              ${hours ? `<div style="color:var(--text-muted);font-size:0.85em">🕐 ${hours}</div>` : ''}
+            </div>
             <button class="btn btn-sm btn-outline" style="margin-right:auto" onclick="openSwap('${currentWeek.weekKey}','${s.date}','${s.shiftId}')">🔄 החלפה</button>
           </div>`;
         }).join('');
@@ -239,8 +244,12 @@
       document.getElementById('fullSchedule').innerHTML = days.map(([dateStr, shifts]) => {
         const d = new Date(dateStr); const dn = dayNames[d.getDay()] || '';
         let inner = '';
-        for (const [sid, emps] of Object.entries(shifts)) {
-          inner += `<div style="margin-bottom:4px"><strong style="color:var(--text-muted);font-size:0.85em">${sid}:</strong> `;
+        for (const [sid, shiftData] of Object.entries(shifts)) {
+          // Support both old format (array) and new format (object with employees)
+          const emps = Array.isArray(shiftData) ? shiftData : (shiftData.employees || []);
+          const shiftName = shiftData.shiftName || sid;
+          const hours = shiftData.start && shiftData.end ? `${shiftData.start}-${shiftData.end}` : '';
+          inner += `<div style="margin-bottom:6px"><strong style="color:var(--text-muted);font-size:0.85em">${shiftName}${hours ? ` (${hours})` : ''}:</strong> `;
           inner += emps.map(e => { const c = roleColors[e.role]||'#95a5a6'; return `<span style="padding:1px 5px;margin:1px;border-radius:4px;font-size:0.82em;background:${c}22;color:${c}">${e.name}</span>`; }).join('');
           inner += '</div>';
         }

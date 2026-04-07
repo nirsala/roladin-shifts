@@ -346,13 +346,27 @@ app.get('/api/my-schedule/:token', (req, res) => {
     .sort(([a], [b]) => b.localeCompare(a))
     .slice(0, 4);
 
+  // Build shift config lookup for hours
+  const shiftsConfig = storage.read('shifts-config', {});
+  const allShiftDefs = [...(shiftsConfig.defaultShifts || [])];
+  // Also collect from overrides
+  for (const ov of Object.values(shiftsConfig.dayOverrides || {})) {
+    if (ov?.shifts) allShiftDefs.push(...ov.shifts);
+  }
+  for (const ov of Object.values(shiftsConfig.dateOverrides || {})) {
+    if (ov?.shifts) allShiftDefs.push(...ov.shifts);
+  }
+  const shiftDefMap = {};
+  allShiftDefs.forEach(s => { shiftDefMap[s.id] = s; });
+
   const mySchedule = published.map(([weekKey, schedule]) => {
     const myShifts = [];
     for (const [dateStr, shifts] of Object.entries(schedule.days || {})) {
       if (!shifts) continue;
       for (const [shiftId, empIds] of Object.entries(shifts)) {
         if (empIds.includes(emp.id)) {
-          myShifts.push({ date: dateStr, shiftId });
+          const def = shiftDefMap[shiftId] || {};
+          myShifts.push({ date: dateStr, shiftId, shiftName: def.name || shiftId, start: def.start || '', end: def.end || '' });
         }
       }
     }
@@ -368,9 +382,13 @@ app.get('/api/my-schedule/:token', (req, res) => {
       if (!shifts) { fullSchedule.days[dateStr] = null; continue; }
       fullSchedule.days[dateStr] = {};
       for (const [shiftId, empIds] of Object.entries(shifts)) {
-        fullSchedule.days[dateStr][shiftId] = empIds.map(id => ({
-          name: empMap[id]?.name || '?', role: empMap[id]?.role || 'general', roles: empMap[id]?.roles || [empMap[id]?.role || 'general']
-        }));
+        const def = shiftDefMap[shiftId] || {};
+        fullSchedule.days[dateStr][shiftId] = {
+          shiftName: def.name || shiftId, start: def.start || '', end: def.end || '',
+          employees: empIds.map(id => ({
+            name: empMap[id]?.name || '?', role: empMap[id]?.role || 'general', roles: empMap[id]?.roles || [empMap[id]?.role || 'general']
+          }))
+        };
       }
     }
   }
