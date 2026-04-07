@@ -177,8 +177,11 @@
         if (!swap) return;
         const candidates = emps.filter(e => e.active && e.id !== swap.requesterId);
 
-        let html = candidates.map(e => `
-          <div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:var(--bg-input);border-radius:8px;cursor:pointer" onclick="doManualApprove('${swapId}','${e.id}','${e.name}')">
+        // Store candidates for click handler (avoids quote escaping issues)
+        window._swapCandidates = candidates;
+        window._swapId = swapId;
+        let html = candidates.map((e, i) => `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:var(--bg-input);border-radius:8px;cursor:pointer" onclick="doManualApprove(${i})">
             <strong style="flex:1">${e.name}</strong>
             ${renderRoleBadges(e)}
           </div>
@@ -190,12 +193,15 @@
       }
     }
 
-    async function doManualApprove(swapId, replacementId, replacementName) {
+    async function doManualApprove(candidateIndex) {
+      const e = window._swapCandidates[candidateIndex];
+      const swapId = window._swapId;
+      if (!e || !swapId) return;
       const managerNote = prompt('הודעה לעובדות (אופציונלי):') || '';
       try {
         await api(`/api/swap-requests/${swapId}/approve`, {
           method: 'PUT',
-          body: JSON.stringify({ manualReplacementId: replacementId, manualReplacementName: replacementName, managerNote })
+          body: JSON.stringify({ manualReplacementId: e.id, manualReplacementName: e.name, managerNote })
         });
         document.querySelector('.modal-overlay')?.remove();
         showToast('ההחלפה אושרה!');

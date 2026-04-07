@@ -707,19 +707,19 @@ app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
     // Update the schedule
     const schedules = storage.read('schedules', {});
     const sched = schedules[s.weekKey];
-    if (sched) {
+    if (sched && acceptedEmployee) {
       const day = sched.days[s.fromDate];
       if (day?.[s.fromShift]) {
-        // Remove requester, add responder
+        // Remove requester, add replacement
         const idx = day[s.fromShift].indexOf(s.requesterId);
-        if (idx !== -1) day[s.fromShift][idx] = response.employeeId;
+        if (idx !== -1) day[s.fromShift][idx] = acceptedEmployee.employeeId;
 
         // If it's a swap (not just take), also swap the other shift
-        if (response.action === 'swap' && response.offerShiftDate && response.offerShiftId) {
-          const otherDay = sched.days[response.offerShiftDate];
-          if (otherDay?.[response.offerShiftId]) {
-            const idx2 = otherDay[response.offerShiftId].indexOf(response.employeeId);
-            if (idx2 !== -1) otherDay[response.offerShiftId][idx2] = s.requesterId;
+        if (acceptedEmployee.action === 'swap' && acceptedEmployee.offerShiftDate && acceptedEmployee.offerShiftId) {
+          const otherDay = sched.days[acceptedEmployee.offerShiftDate];
+          if (otherDay?.[acceptedEmployee.offerShiftId]) {
+            const idx2 = otherDay[acceptedEmployee.offerShiftId].indexOf(acceptedEmployee.employeeId);
+            if (idx2 !== -1) otherDay[acceptedEmployee.offerShiftId][idx2] = s.requesterId;
           }
         }
       }
