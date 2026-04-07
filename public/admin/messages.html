@@ -131,9 +131,10 @@
 
         let actionsHtml = '';
         if (s.status === 'pending') {
-          actionsHtml = `<div style="display:flex;gap:6px;margin-top:8px">
-            <button class="btn btn-sm btn-info" onclick="broadcastSwap('${s.id}')">📱 שלח לעובדות בוואטסאפ</button>
-            <button class="btn btn-sm btn-danger" onclick="rejectSwap('${s.id}')">דחה</button>
+          actionsHtml = `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            <button class="btn btn-sm btn-success" onclick="manualApproveSwap('${s.id}')">✓ אשר החלפה</button>
+            <button class="btn btn-sm btn-info" onclick="broadcastSwap('${s.id}')">📱 שלח לעובדות</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectSwap('${s.id}')">✕ דחה</button>
           </div>`;
         } else {
           actionsHtml = `<div style="margin-top:8px">
@@ -163,6 +164,43 @@
       try {
         const links = await api(`/api/swap-request/${swapId}/wa-links`);
         showWaLinksModal('שליחת בקשת החלפה לעובדות', links);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function manualApproveSwap(swapId) {
+      // Manager picks replacement employee manually
+      try {
+        const emps = await api('/api/employees') || [];
+        const swap = (await api('/api/swap-requests') || []).find(s => s.id === swapId);
+        if (!swap) return;
+        const candidates = emps.filter(e => e.active && e.id !== swap.requesterId);
+
+        let html = candidates.map(e => `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:var(--bg-input);border-radius:8px;cursor:pointer" onclick="doManualApprove('${swapId}','${e.id}','${e.name}')">
+            <strong style="flex:1">${e.name}</strong>
+            ${renderRoleBadges(e)}
+          </div>
+        `).join('');
+
+        showModal('בחר/י מי מחליף/ה', `<p style="color:var(--text-muted);margin-bottom:8px">${swap.requesterName} - ${swap.fromDate} ${swap.fromShift}</p>${html}`);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function doManualApprove(swapId, replacementId, replacementName) {
+      const managerNote = prompt('הודעה לעובדות (אופציונלי):') || '';
+      try {
+        await api(`/api/swap-requests/${swapId}/approve`, {
+          method: 'PUT',
+          body: JSON.stringify({ manualReplacementId: replacementId, manualReplacementName: replacementName, managerNote })
+        });
+        document.querySelector('.modal-overlay')?.remove();
+        showToast('ההחלפה אושרה!');
+        loadSwaps();
+        notifySwapResult(swapId);
       } catch (err) {
         showToast(err.message, 'error');
       }

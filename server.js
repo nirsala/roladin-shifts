@@ -674,23 +674,35 @@ app.post('/api/swap-request/:id/respond', (req, res) => {
   res.json({ success: true, message: 'התגובה נשמרה! המנהל יאשר בקרוב.' });
 });
 
-// Manager approves a specific response
+// Manager approves - either a specific response OR manual replacement
 app.put('/api/swap-requests/:id/approve', auth.requireAdmin, (req, res) => {
-  const { responseIndex, managerNote } = req.body;
+  const { responseIndex, managerNote, manualReplacementId, manualReplacementName } = req.body;
   let swap = null;
   let acceptedEmployee = null;
 
   storage.update('swap-requests', list => {
     const s = list.find(r => r.id === req.params.id);
-    if (!s || !s.responses?.[responseIndex]) return list;
+    if (!s) return list;
 
-    const response = s.responses[responseIndex];
-    s.status = 'approved';
-    s.approvedResponseIndex = responseIndex;
-    s.managerNote = managerNote || '';
-    s.resolvedAt = new Date().toISOString();
-    acceptedEmployee = response;
-    swap = s;
+    // Manual replacement (manager picks who replaces, no response needed)
+    if (manualReplacementId) {
+      s.status = 'approved';
+      s.managerNote = managerNote || '';
+      s.resolvedAt = new Date().toISOString();
+      acceptedEmployee = { employeeId: manualReplacementId, employeeName: manualReplacementName || '?', action: 'take' };
+      swap = s;
+    } else if (s.responses?.[responseIndex]) {
+      // Approve a specific employee response
+      const response = s.responses[responseIndex];
+      s.status = 'approved';
+      s.approvedResponseIndex = responseIndex;
+      s.managerNote = managerNote || '';
+      s.resolvedAt = new Date().toISOString();
+      acceptedEmployee = response;
+      swap = s;
+    } else {
+      return list;
+    }
 
     // Update the schedule
     const schedules = storage.read('schedules', {});
