@@ -212,9 +212,24 @@
 
     loadMessages();
     loadSwaps();
+
+    function showAdminPopup(message) {
+      const popup = document.createElement('div');
+      popup.style.cssText = 'position:fixed;top:16px;left:16px;right:220px;z-index:9999;animation:slideIn 0.3s ease';
+      popup.innerHTML = `<div style="background:var(--bg-card);border:2px solid var(--gold);border-radius:12px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.4);display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.3em">🔔</span>
+        <span style="flex:1;font-size:0.9em">${message}</span>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;color:var(--text-muted);font-size:1.2em;cursor:pointer">✕</button>
+      </div>`;
+      document.body.appendChild(popup);
+      setTimeout(() => { if (popup.parentNode) popup.remove(); }, 6000);
+    }
+
     connectWS(msg => {
-      if (['new_message'].includes(msg.event)) loadMessages();
-      if (['swap_requested', 'swap_response', 'swap_approved', 'swap_rejected'].includes(msg.event)) loadSwaps();
+      if (msg.event === 'new_message') { loadMessages(); showAdminPopup(`💬 הודעה חדשה מ-${msg.data?.employeeName || 'עובד/ת'}`); }
+      if (msg.event === 'swap_requested') { loadSwaps(); showAdminPopup(`🔄 בקשת החלפה חדשה מ-${msg.data?.requesterName || 'עובד/ת'}`); }
+      if (msg.event === 'swap_response') { loadSwaps(); showAdminPopup(`🔄 ${msg.data?.employeeName || 'עובד/ת'} הגיב/ה לבקשת החלפה`); }
+      if (['swap_approved', 'swap_rejected'].includes(msg.event)) loadSwaps();
     });
 
     async function broadcastNotification() {

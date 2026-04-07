@@ -20,6 +20,7 @@
     .shift-date { background:var(--gold); color:var(--bg); width:50px; height:50px; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; }
     .incoming-swap { background:rgba(212,168,83,0.1); border:1px solid var(--gold); border-radius:12px; padding:14px; margin-bottom:10px; }
     .candidate-item { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg-input); border-radius:8px; margin-bottom:6px; }
+    @keyframes popIn { from { transform:translateY(-20px); opacity:0; } to { transform:translateY(0); opacity:1; } }
   </style>
 </head>
 <body>
@@ -87,6 +88,39 @@
 
     let data = null;
     let notifications = [];
+    let knownNotifIds = new Set();
+    let firstLoad = true;
+
+    // System notification popup
+    function showSystemPopup(message, type) {
+      const typeIcons = { schedule:'📋', swap:'🔄', availability:'📝', reminder:'⏰', general:'💬' };
+      const icon = typeIcons[type] || '🔔';
+
+      const popup = document.createElement('div');
+      popup.style.cssText = 'position:fixed;top:16px;right:16px;left:16px;z-index:9999;animation:popIn 0.3s ease';
+      popup.innerHTML = `<div style="background:var(--bg-card);border:2px solid var(--gold);border-radius:12px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.4);display:flex;align-items:flex-start;gap:10px">
+        <span style="font-size:1.5em;flex-shrink:0">${icon}</span>
+        <div style="flex:1">
+          <strong style="color:var(--gold);font-size:0.85em">הודעה חדשה</strong>
+          <p style="margin-top:2px;font-size:0.9em">${message}</p>
+        </div>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;color:var(--text-muted);font-size:1.2em;cursor:pointer;flex-shrink:0">✕</button>
+      </div>`;
+      document.body.appendChild(popup);
+
+      // Auto-remove after 8 seconds
+      setTimeout(() => { if (popup.parentNode) popup.remove(); }, 8000);
+
+      // Try browser notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('רולדין', { body: message, icon: '📋' });
+      }
+    }
+
+    // Request browser notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
 
     if (!token) {
       document.getElementById('loading').style.display = 'none';
@@ -113,6 +147,18 @@
         ]);
         data = schedRes;
         notifications = notifRes;
+
+        // Detect NEW notifications and show popup
+        if (!firstLoad) {
+          for (const n of notifications) {
+            if (!knownNotifIds.has(n.id) && !n.read) {
+              showSystemPopup(n.message, n.type);
+            }
+          }
+        }
+        // Update known IDs
+        knownNotifIds = new Set(notifications.map(n => n.id));
+        firstLoad = false;
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('app').style.display = 'block';
@@ -407,8 +453,8 @@
       } catch (err) { alert(err.message || 'שגיאה'); }
     }
 
-    // Auto-refresh every 30 seconds
-    setInterval(() => { if (token) loadAll(); }, 30000);
+    // Auto-refresh every 15 seconds for quick notifications
+    setInterval(() => { if (token) loadAll(); }, 15000);
   </script>
 </body>
 </html>
